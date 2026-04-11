@@ -1,12 +1,10 @@
-import { useNavigate } from 'react-router-dom';
 import { ChipCalculatorPage } from './ChipCalculatorPage';
+import { HeaderBack } from '../components/HeaderBack';
 
 export function SettingsPage() {
-  const navigate = useNavigate();
-
   return (
     <div className="page">
-      <h1 className="page-title">⚙️ Настройки</h1>
+      <HeaderBack title="Настройки" />
 
       {/* Пресеты фишек */}
       <div className="card">
@@ -19,9 +17,6 @@ export function SettingsPage() {
       <ChipCalculatorPage embedded />
 
       <div className="spacer" />
-      <button className="btn btn-secondary mt-16" onClick={() => navigate('/')}>
-        На главную
-      </button>
     </div>
   );
 }

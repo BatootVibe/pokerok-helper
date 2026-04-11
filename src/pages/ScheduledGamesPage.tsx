@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { ScheduledGame } from '../types';
 import { loadScheduledGames, saveScheduledGame, deleteScheduledGame, generateId, loadVenues } from '../utils/storage';
+import { HeaderBack } from '../components/HeaderBack';
 
 export function ScheduledGamesPage() {
-  const navigate = useNavigate();
   const [scheduled, setScheduled] = useState<ScheduledGame[]>([]);
   const [venues, setVenues] = useState<string[]>([]);
   const [showForm, setShowForm] = useState(false);
@@ -75,7 +74,7 @@ export function ScheduledGamesPage() {
 
   return (
     <div className="page">
-      <h1 className="page-title">📅 Запланированные</h1>
+      <HeaderBack title="Запланированные" />
 
       {showForm ? (
         <div className="card">
@@ -191,7 +190,7 @@ export function ScheduledGamesPage() {
                 </div>
                 <button
                   className="btn btn-danger btn-icon btn-small"
-                  style={{ width: 28, height: 28, fontSize: 14 }}
+                  style={{ width: 44, height: 44, fontSize: 22 }}
                   onClick={() => handleDelete(game.id)}
                 >
                   ×
@@ -210,9 +209,6 @@ export function ScheduledGamesPage() {
       )}
 
       <div className="spacer" />
-      <button className="btn btn-secondary mt-16" onClick={() => navigate('/')}>
-        На главную
-      </button>
     </div>
   );
 }

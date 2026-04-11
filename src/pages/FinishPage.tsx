@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useGame } from '../context/GameContext';
 import { loadPresets, addCompletedGame } from '../utils/storage';
 import { CompletedGame, GameResult, ChipPreset, CHIP_COLOR_MAP } from '../types';
+import { HeaderBack } from '../components/HeaderBack';
 
 export function FinishPage() {
   const navigate = useNavigate();
@@ -99,7 +100,7 @@ export function FinishPage() {
 
   return (
     <div className="page">
-      <h1 className="page-title">💰 Подсчёт</h1>
+      <HeaderBack title="Подсчёт" />
 
       {!selectedPreset ? (
         <div className="card">

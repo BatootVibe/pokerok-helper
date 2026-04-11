@@ -128,7 +128,7 @@ export function ChipCalculatorPage({ embedded }: { embedded?: boolean }) {
               </div>
               <button
                 className="btn btn-danger btn-icon btn-small"
-                style={{ width: 32, height: 32, fontSize: 16 }}
+                style={{ width: 44, height: 44, fontSize: 22 }}
                 onClick={e => { e.stopPropagation(); handleDeletePreset(preset.id); }}
               >
                 ×
@@ -208,7 +208,7 @@ export function ChipCalculatorPage({ embedded }: { embedded?: boolean }) {
               />
               <button
                 className="btn btn-danger btn-icon btn-small"
-                style={{ width: 34, height: 34, fontSize: 16 }}
+                style={{ width: 44, height: 44, fontSize: 22 }}
                 onClick={() => removeChipEntry(index)}
               >
                 ×

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGame } from '../context/GameContext';
+import { HeaderBack } from '../components/HeaderBack';
 
 export function GameTablePage() {
   const navigate = useNavigate();
@@ -39,7 +40,7 @@ export function GameTablePage() {
 
   return (
     <div className="page">
-      <h1 className="page-title">🃏 Игровой стол</h1>
+      <HeaderBack title="Игровой стол" />
 
       {/* Игроки */}
       <div className="card">
@@ -60,18 +61,18 @@ export function GameTablePage() {
                 margin: 0,
                 gap: 6,
               }}>
-                <span className="player-name" style={{ fontSize: 14 }}>{player.name}</span>
-                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 10 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>BI</span>
-                    <span style={{ fontSize: 13, fontWeight: 700 }}>1</span>
+                <span className="player-name" style={{ fontSize: 15, marginBottom: 4 }}>{player.name}</span>
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>BI</span>
+                    <span style={{ fontSize: 18, fontWeight: 700 }}>1</span>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>RB</span>
-                    <span style={{ fontSize: 14, fontWeight: 700, minWidth: 16, textAlign: 'center' }}>{player.rebuyQty}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>RB</span>
+                    <span style={{ fontSize: 18, fontWeight: 700, minWidth: 20, textAlign: 'center' }}>{player.rebuyQty}</span>
                     <button
                       className="btn btn-primary btn-icon btn-small"
-                      style={{ width: 26, height: 26, fontSize: 16 }}
+                      style={{ width: 44, height: 44, fontSize: 26 }}
                       onClick={() => incrementRebuy(player.id)}
                     >
                       +
@@ -79,7 +80,7 @@ export function GameTablePage() {
                   </div>
                   <button
                     className="btn btn-danger btn-icon btn-small"
-                    style={{ width: 26, height: 26, fontSize: 14 }}
+                    style={{ width: 44, height: 44, fontSize: 24 }}
                     onClick={() => removePlayer(player.id)}
                   >
                     ×
@@ -120,12 +121,6 @@ export function GameTablePage() {
         style={{ fontSize: 17, padding: '16px 24px' }}
       >
         💰 Считаемся
-      </button>
-      <button
-        className="btn btn-secondary mt-16"
-        onClick={() => navigate('/')}
-      >
-        На главную
       </button>
       <button
         className="btn btn-danger mt-16"

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGame } from '../context/GameContext';
 import { loadPresets, loadVenues, saveVenue, deleteVenue, loadGameHistory, findNearbyScheduledGame, deleteScheduledGame } from '../utils/storage';
+import { HeaderBack } from '../components/HeaderBack';
 import { ChipPreset } from '../types';
 
 export function CreateGamePage() {
@@ -108,7 +109,7 @@ export function CreateGamePage() {
 
   return (
     <div className="page">
-      <h1 className="page-title">🎲 Новая игра</h1>
+      <HeaderBack title="Новая игра" />
 
       {/* Промпт: есть ближайшая запланированная */}
       {showNearbyPrompt && nearbyGame && (
@@ -151,7 +152,7 @@ export function CreateGamePage() {
             onChange={e => setNewPlayerName(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && addPlayer()}
           />
-          <button className="btn btn-primary btn-small" onClick={addPlayer} style={{ minWidth: 36 }}>
+          <button className="btn btn-primary btn-small" onClick={addPlayer} style={{ minWidth: 44, minHeight: 44, fontSize: 22 }}>
             +
           </button>
           {lastGamePlayers.length > 0 && (
@@ -159,7 +160,7 @@ export function CreateGamePage() {
               className="btn btn-secondary btn-small"
               onClick={addLastPlayers}
               title="Добавить игроков из последней игры"
-              style={{ fontSize: 18, minWidth: 36 }}
+              style={{ fontSize: 24, minWidth: 44, minHeight: 44 }}
             >
               ↻
             </button>
@@ -172,7 +173,7 @@ export function CreateGamePage() {
                 <span className="player-name" style={{ fontSize: 14 }}>{name}</span>
                 <button
                   className="btn btn-danger btn-icon btn-small"
-                  style={{ width: 28, height: 28, fontSize: 14 }}
+                  style={{ width: 44, height: 44, fontSize: 22 }}
                   onClick={() => removePlayer(i)}
                 >
                   ×
@@ -352,12 +353,6 @@ export function CreateGamePage() {
             </span>
           </>
         )}
-      </button>
-      <button
-        className="btn btn-secondary mt-16"
-        onClick={() => navigate('/')}
-      >
-        На главную
       </button>
     </div>
   );

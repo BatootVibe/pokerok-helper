@@ -1,10 +1,9 @@
-import { useNavigate } from 'react-router-dom';
 import { loadGameHistory, clearGameHistory } from '../utils/storage';
 import { CompletedGame } from '../types';
 import { useState, useEffect, useRef } from 'react';
+import { HeaderBack } from '../components/HeaderBack';
 
 export function HistoryPage() {
-  const navigate = useNavigate();
   const [history, setHistory] = useState<CompletedGame[]>([]);
   const [loading, setLoading] = useState(true);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -73,7 +72,7 @@ export function HistoryPage() {
 
   return (
     <div className="page">
-      <h1 className="page-title" style={{ marginBottom: 16, fontSize: 20 }}>История</h1>
+      <HeaderBack title="История" />
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-secondary)' }}>Загрузка...</div>
@@ -203,9 +202,6 @@ export function HistoryPage() {
           </button>
         </div>
       )}
-      <button className="btn btn-secondary mt-16" onClick={() => navigate('/')}>
-        На главную
-      </button>
 
       {/* Модальное окно подтверждения */}
       {showConfirm && (
