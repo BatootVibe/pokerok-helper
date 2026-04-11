@@ -2,12 +2,28 @@ import { CompletedGame, ChipPreset, ScheduledGame } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
+interface ApiError extends Error {
+  status?: number;
+  body?: unknown;
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: { 'Content-Type': 'application/json' },
     ...options,
   });
-  if (!res.ok) throw new Error(`API error: ${res.status}`);
+
+  if (!res.ok) {
+    const error = new Error(`API error: ${res.status} ${res.statusText}`) as ApiError;
+    error.status = res.status;
+    try {
+      error.body = await res.json();
+    } catch {
+      // Response body not JSON
+    }
+    throw error;
+  }
+
   return res.json();
 }
 
@@ -61,4 +77,9 @@ export function apiSaveScheduled(game: ScheduledGame): Promise<{ success: boolea
 
 export function apiDeleteScheduled(id: string): Promise<{ success: boolean }> {
   return request(`/api/scheduled/${id}`, { method: 'DELETE' });
+}
+
+// Health check
+export function apiHealthCheck(): Promise<{ status: string }> {
+  return request('/api/health');
 }

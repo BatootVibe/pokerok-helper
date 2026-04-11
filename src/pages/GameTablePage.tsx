@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGame } from '../context/GameContext';
-import { HeaderBack } from '../components/HeaderBack';
+import { HeaderHome } from '../components/HeaderBack';
 
 export function GameTablePage() {
   const navigate = useNavigate();
-  const { currentGame, addPlayer, incrementRebuy, removePlayer, finishGame } = useGame();
+  const { currentGame, addPlayer, incrementRebuy, finishGame } = useGame();
   const [newPlayerName, setNewPlayerName] = useState('');
   const [showConfirm, setShowConfirm] = useState(false);
 
@@ -29,76 +29,53 @@ export function GameTablePage() {
   };
 
   const handleEmergencyFinish = () => {
-    if (!currentGame) return;
-    const games = JSON.parse(localStorage.getItem('poker_games') || '{}');
-    delete games[currentGame.id];
-    localStorage.setItem('poker_games', JSON.stringify(games));
-    localStorage.removeItem('poker_current_game_id');
     finishGame();
     navigate('/');
   };
 
   return (
     <div className="page">
-      <HeaderBack title="Игровой стол" />
+      <HeaderHome title="Игровой стол" />
 
       {/* Игроки */}
       <div className="card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <div className="card-header">
           <h3>Игроки</h3>
-          <span style={{ fontSize: 13, color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.1)', padding: '2px 10px', borderRadius: 12 }}>
-            {currentGame.players.length}
-          </span>
+          <span className="badge">{currentGame.players.length}</span>
         </div>
 
         {currentGame.players.length > 0 ? (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <div className="player-grid">
             {currentGame.players.map((player) => (
-              <div key={player.id} className="player-row" style={{
-                flexDirection: 'column',
-                alignItems: 'stretch',
-                padding: '10px 12px',
-                margin: 0,
-                gap: 6,
-              }}>
-                <span className="player-name" style={{ fontSize: 15, marginBottom: 4 }}>{player.name}</span>
-                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>BI</span>
-                    <span style={{ fontSize: 18, fontWeight: 700 }}>1</span>
+              <div key={player.id} className="player-card">
+                <span className="player-name">{player.name}</span>
+                <div className="player-stats-row">
+                  <div className="stat-badge">
+                    <span className="stat-label">BI</span>
+                    <span className="stat-value">1</span>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>RB</span>
-                    <span style={{ fontSize: 18, fontWeight: 700, minWidth: 20, textAlign: 'center' }}>{player.rebuyQty}</span>
-                    <button
-                      className="btn btn-primary btn-icon btn-small"
-                      style={{ width: 44, height: 44, fontSize: 26 }}
-                      onClick={() => incrementRebuy(player.id)}
-                    >
-                      +
-                    </button>
+                  <div className="stat-badge">
+                    <span className="stat-label">RB</span>
+                    <span className="stat-value">{player.rebuyQty}</span>
                   </div>
-                  <button
-                    className="btn btn-danger btn-icon btn-small"
-                    style={{ width: 44, height: 44, fontSize: 24 }}
-                    onClick={() => removePlayer(player.id)}
-                  >
-                    ×
-                  </button>
                 </div>
+                <button
+                  className="btn btn-primary rebuy-btn"
+                  onClick={() => incrementRebuy(player.id)}
+                >
+                  + Ребай
+                </button>
               </div>
             ))}
           </div>
         ) : (
-          <p style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: 14, marginTop: 8 }}>
-            Пока нет игроков
-          </p>
+          <p className="empty-text">Пока нет игроков</p>
         )}
       </div>
 
       {/* Добавить игрока */}
-      <div className="card" style={{ background: 'rgba(255, 255, 255, 0.03)', borderStyle: 'dashed', opacity: 0.8 }}>
-        <div className="add-player-form" style={{ marginBottom: 0 }}>
+      <div className="card card-dashed">
+        <div className="add-player-form">
           <input
             className="input"
             type="text"
@@ -107,24 +84,20 @@ export function GameTablePage() {
             onChange={e => setNewPlayerName(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleAddPlayer()}
           />
-          <button className="btn btn-primary btn-small" onClick={handleAddPlayer}>
-            +
-          </button>
+          <button className="btn btn-primary btn-small" onClick={handleAddPlayer}>+</button>
         </div>
       </div>
 
       <div className="spacer" />
 
       <button
-        className="btn btn-success mt-16"
-        onClick={() => navigate('/finish')}
-        style={{ fontSize: 17, padding: '16px 24px' }}
+        className="btn btn-success mt-16 btn-lg"
+        onClick={() => navigate('/chips-count')}
       >
         💰 Считаемся
       </button>
       <button
-        className="btn btn-danger mt-16"
-        style={{ fontSize: 13, padding: '12px 24px', opacity: 0.8 }}
+        className="btn btn-danger mt-16 btn-sm"
         onClick={() => setShowConfirm(true)}
       >
         Завершить игру
@@ -133,12 +106,12 @@ export function GameTablePage() {
       {/* Модальное окно подтверждения */}
       {showConfirm && (
         <div className="modal-overlay">
-          <div className="card" style={{ maxWidth: 360, width: '100%', animation: 'slideUp 0.3s ease' }}>
-            <h3 style={{ marginBottom: 12, textAlign: 'center' }}>⚠️ Завершить игру?</h3>
-            <p style={{ textAlign: 'center', color: 'var(--text-secondary)', marginBottom: 20 }}>
+          <div className="card card-modal">
+            <h3 className="modal-title">⚠️ Завершить игру?</h3>
+            <p className="modal-desc">
               Результаты не будут сохранены в историю.
             </p>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div className="modal-actions">
               <button className="btn btn-danger btn-small" style={{ flex: 1 }} onClick={handleEmergencyFinish}>
                 Завершить
               </button>

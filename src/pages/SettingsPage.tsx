@@ -6,10 +6,9 @@ export function SettingsPage() {
     <div className="page">
       <HeaderBack title="Настройки" />
 
-      {/* Пресеты фишек */}
       <div className="card">
-        <h3 style={{ marginBottom: 4 }}>🎯 Пресеты фишек</h3>
-        <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12 }}>
+        <h3 className="mb-4">🎯 Пресеты фишек</h3>
+        <p className="text-muted text-sm mb-12">
           Настройте цвета и номиналы фишек для игр
         </p>
       </div>

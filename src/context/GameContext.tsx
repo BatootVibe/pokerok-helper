@@ -1,9 +1,8 @@
-import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
-import { Game, GamePlayer, FinishedPlayerChips } from '../types';
-import { generateId } from '../utils/storage';
+import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
+import { Game, GamePlayer } from '../types';
+import { GAMES_KEY, CURRENT_GAME_ID_KEY } from '../utils/constants';
 
-const GAMES_KEY = 'poker_games';
-const CURRENT_GAME_ID_KEY = 'poker_current_game_id';
+// === localStorage helpers (inline, изолированные) ===
 
 function loadGames(): Record<string, Game> {
   try {
@@ -30,6 +29,14 @@ function clearCurrentGameId() {
   localStorage.removeItem(CURRENT_GAME_ID_KEY);
 }
 
+// === generateId (локально, чтобы не тянуть из storage) ===
+
+function generateId(): string {
+  return Date.now().toString(36) + Math.random().toString(36).substring(2, 9);
+}
+
+// === Context ===
+
 interface GameContextType {
   currentGame: Game | null;
   createGame: (players: string[], startingChips: number, buyInRubles: number, chipPresetId: string | null, venue: string) => void;
@@ -37,8 +44,6 @@ interface GameContextType {
   incrementRebuy: (playerId: string) => void;
   decrementRebuy: (playerId: string) => void;
   removePlayer: (playerId: string) => void;
-  playerChips: Record<string, FinishedPlayerChips>;
-  setPlayerChips: (playerId: string, chips: FinishedPlayerChips) => void;
   finishGame: () => void;
   selectedPresetId: string | null;
   setSelectedPresetId: (id: string | null) => void;
@@ -50,8 +55,8 @@ const GameContext = createContext<GameContextType | undefined>(undefined);
 export function GameProvider({ children }: { children: ReactNode }) {
   const [currentGame, setCurrentGame] = useState<Game | null>(null);
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
-  const [playerChips, setPlayerChips] = useState<Record<string, FinishedPlayerChips>>({});
   const [initialized, setInitialized] = useState(false);
+  const saveTimerRef = useRef<number | null>(null);
 
   // Загрузка текущей игры при старте
   useEffect(() => {
@@ -66,14 +71,27 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setInitialized(true);
   }, []);
 
-  // Сохранение при каждом изменении
+  // Debounced сохранение при каждом изменении (не чаще 300мс)
   useEffect(() => {
-    if (!initialized) return;
-    if (!currentGame) return;
-    const games = loadGames();
-    games[currentGame.id] = currentGame;
-    saveGames(games);
-    saveCurrentGameId(currentGame.id);
+    if (!initialized || !currentGame) return;
+
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+    }
+
+    saveTimerRef.current = window.setTimeout(() => {
+      const games = loadGames();
+      games[currentGame.id] = currentGame;
+      saveGames(games);
+      saveCurrentGameId(currentGame.id);
+      saveTimerRef.current = null;
+    }, 300);
+
+    return () => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+      }
+    };
   }, [currentGame, initialized]);
 
   const createGame = useCallback((players: string[], startingChips: number, buyInRubles: number, chipPresetId: string | null, venue: string) => {
@@ -96,7 +114,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
     setCurrentGame(game);
     setSelectedPresetId(chipPresetId);
-    setPlayerChips({});
   }, []);
 
   const addPlayer = useCallback((name: string) => {
@@ -142,28 +159,32 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setCurrentGame(game);
   }, []);
 
-  const setPlayerChipsFn = useCallback((playerId: string, chips: FinishedPlayerChips) => {
-    setPlayerChips(prev => ({ ...prev, [playerId]: chips }));
+  const finishGame = useCallback(() => {
+    // Чистая функция: только убирает currentGame
+    // Persistence обрабатывается useEffect выше
+    setCurrentGame(null);
+    setSelectedPresetId(null);
   }, []);
 
-  const finishGame = useCallback(() => {
-    setCurrentGame(prev => {
-      if (!prev) return prev;
-      // Удаляем из сохранённых
+  // Очистка при финише (удаляем из localStorage)
+  useEffect(() => {
+    if (initialized && !currentGame) {
       const games = loadGames();
-      delete games[prev.id];
-      saveGames(games);
-      clearCurrentGameId();
-      return null;
-    });
-    setSelectedPresetId(null);
-    setPlayerChips({});
-  }, []);
+      const prevId = loadCurrentGameId();
+      if (prevId && games[prevId]) {
+        delete games[prevId];
+        saveGames(games);
+        clearCurrentGameId();
+      }
+    }
+  }, [currentGame, initialized]);
 
   if (!initialized) {
-    return <div className="page" style={{ justifyContent: 'center', alignItems: 'center' }}>
-      <p style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>Загрузка...</p>
-    </div>;
+    return (
+      <div className="page" style={{ justifyContent: 'center', alignItems: 'center' }}>
+        <p style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>Загрузка...</p>
+      </div>
+    );
   }
 
   return (
@@ -175,8 +196,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
         incrementRebuy,
         decrementRebuy,
         removePlayer,
-        playerChips,
-        setPlayerChips: setPlayerChipsFn,
         finishGame,
         selectedPresetId,
         setSelectedPresetId,

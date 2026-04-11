@@ -36,7 +36,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS presets (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
-    chips TEXT NOT NULL  -- JSON массив [{color, nominal}]
+    chips TEXT NOT NULL
   );
 
   CREATE INDEX IF NOT EXISTS idx_results_game ON game_results(game_id);
@@ -51,8 +51,35 @@ db.exec(`
 `);
 
 const app = express();
-app.use(cors());
+
+// CORS — ограничиваем localhost
+app.use(cors({
+  origin: ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173'],
+}));
 app.use(express.json());
+
+// === Validation helpers ===
+
+function validateString(val, name, minLen = 1) {
+  if (typeof val !== 'string' || val.trim().length < minLen) {
+    return `Invalid or missing '${name}'`;
+  }
+  return null;
+}
+
+function validateNumber(val, name, min = 0) {
+  if (typeof val !== 'number' || val < min || !Number.isFinite(val)) {
+    return `Invalid or missing '${name}'`;
+  }
+  return null;
+}
+
+function validateArray(val, name) {
+  if (!Array.isArray(val)) {
+    return `'${name}' must be an array`;
+  }
+  return null;
+}
 
 // ===== ИГРЫ =====
 
@@ -95,8 +122,29 @@ app.get('/api/games', (req, res) => {
 app.post('/api/games', (req, res) => {
   const { id, date, players, startingChips, buyInRubles, chipPriceRubles, finishedAt, venue } = req.body;
 
-  if (!id || !players || !Array.isArray(players)) {
-    return res.status(400).json({ error: 'Invalid game data' });
+  const err = validateString(id, 'id')
+    || validateString(date, 'date')
+    || validateArray(players, 'players')
+    || validateNumber(startingChips, 'startingChips', 1)
+    || validateNumber(buyInRubles, 'buyInRubles', 0)
+    || validateNumber(chipPriceRubles, 'chipPriceRubles', 0);
+
+  if (err) {
+    return res.status(400).json({ error: err });
+  }
+
+  for (const p of players) {
+    const playerErr = validateString(p.playerId, 'playerId')
+      || validateString(p.playerName, 'playerName')
+      || validateNumber(p.buyInQty, 'buyInQty', 0)
+      || validateNumber(p.rebuyQty, 'rebuyQty', 0)
+      || validateNumber(p.wasChips, 'wasChips', 0)
+      || validateNumber(p.becameChips, 'becameChips', 0)
+      || validateNumber(p.rubles, 'rubles')
+      || validateNumber(p.spentRubles, 'spentRubles', 0);
+    if (playerErr) {
+      return res.status(400).json({ error: playerErr });
+    }
   }
 
   const insertGame = db.prepare(
@@ -146,7 +194,6 @@ app.delete('/api/games', (req, res) => {
 
 // ===== ПРЕСЕТЫ =====
 
-// Получить все пресеты
 app.get('/api/presets', (req, res) => {
   const presets = db.prepare('SELECT id, name, chips FROM presets').all();
   const result = presets.map(p => ({
@@ -157,18 +204,30 @@ app.get('/api/presets', (req, res) => {
   res.json(result);
 });
 
-// Сохранить пресет
 app.post('/api/presets', (req, res) => {
   const { id, name, chips } = req.body;
-  if (!id || !name || !Array.isArray(chips)) {
-    return res.status(400).json({ error: 'Invalid preset data' });
+
+  const err = validateString(id, 'id')
+    || validateString(name, 'name')
+    || validateArray(chips, 'chips');
+
+  if (err) {
+    return res.status(400).json({ error: err });
   }
+
+  for (const chip of chips) {
+    const chipErr = validateString(chip.color, 'color')
+      || validateNumber(chip.nominal, 'nominal', 0);
+    if (chipErr) {
+      return res.status(400).json({ error: chipErr });
+    }
+  }
+
   db.prepare('INSERT OR REPLACE INTO presets (id, name, chips) VALUES (?, ?, ?)')
     .run(id, name, JSON.stringify(chips));
   res.json({ success: true });
 });
 
-// Удалить пресет
 app.delete('/api/presets/:id', (req, res) => {
   db.prepare('DELETE FROM presets WHERE id = ?').run(req.params.id);
   res.json({ success: true });
@@ -188,9 +247,16 @@ app.get('/api/scheduled', (req, res) => {
 
 app.post('/api/scheduled', (req, res) => {
   const { id, venue, scheduledAt, players, createdAt } = req.body;
-  if (!id || !venue || !scheduledAt || !Array.isArray(players)) {
-    return res.status(400).json({ error: 'Invalid scheduled game data' });
+
+  const err = validateString(id, 'id')
+    || validateString(venue, 'venue')
+    || validateString(scheduledAt, 'scheduledAt')
+    || validateArray(players, 'players');
+
+  if (err) {
+    return res.status(400).json({ error: err });
   }
+
   db.prepare(
     'INSERT INTO scheduled_games (id, venue, scheduled_at, players, created_at) VALUES (?, ?, ?, ?, ?)'
   ).run(id, venue, scheduledAt, JSON.stringify(players), createdAt || new Date().toISOString());
@@ -202,7 +268,7 @@ app.delete('/api/scheduled/:id', (req, res) => {
   res.json({ success: true });
 });
 
-// ===== STATIC (раздача фронтенда) =====
+// ===== STATIC =====
 app.use(express.static(path.join(__dirname, '..', 'dist')));
 
 // SPA fallback

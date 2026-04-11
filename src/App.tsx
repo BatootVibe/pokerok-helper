@@ -1,10 +1,12 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { GameProvider } from './context/GameContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { RequireGame } from './components/RequireGame';
 import { HomePage } from './pages/HomePage';
 import { CreateGamePage } from './pages/CreateGamePage';
 import { GameTablePage } from './pages/GameTablePage';
-import { FinishPage } from './pages/FinishPage';
+import { ChipCountPage } from './pages/ChipCountPage';
+import { ResultsPage } from './pages/ResultsPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { ChipCalculatorPage } from './pages/ChipCalculatorPage';
 import { ScheduledGamesPage } from './pages/ScheduledGamesPage';
@@ -19,8 +21,30 @@ function App() {
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/create" element={<CreateGamePage />} />
-            <Route path="/table" element={<GameTablePage />} />
-            <Route path="/finish" element={<FinishPage />} />
+            <Route
+              path="/table"
+              element={
+                <RequireGame>
+                  <GameTablePage />
+                </RequireGame>
+              }
+            />
+            <Route
+              path="/chips-count"
+              element={
+                <RequireGame>
+                  <ChipCountPage />
+                </RequireGame>
+              }
+            />
+            <Route
+              path="/results"
+              element={
+                <RequireGame>
+                  <ResultsPage />
+                </RequireGame>
+              }
+            />
             <Route path="/history" element={<HistoryPage />} />
             <Route path="/chips" element={<ChipCalculatorPage />} />
             <Route path="/scheduled" element={<ScheduledGamesPage />} />

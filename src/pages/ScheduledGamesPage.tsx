@@ -1,38 +1,34 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { ScheduledGame } from '../types';
 import { loadScheduledGames, saveScheduledGame, deleteScheduledGame, generateId, loadVenues } from '../utils/storage';
 import { HeaderBack } from '../components/HeaderBack';
+import { formatDate, formatTime, isPast } from '../utils/date';
+import { useNameList } from '../utils/hooks';
+import { NEARBY_GAME_MARGIN } from '../utils/constants';
 
 export function ScheduledGamesPage() {
   const [scheduled, setScheduled] = useState<ScheduledGame[]>([]);
   const [venues, setVenues] = useState<string[]>([]);
   const [showForm, setShowForm] = useState(false);
+  const { names: players, add: addPlayer, remove: removePlayer, clear: clearPlayers } = useNameList();
 
   // Форма
   const [venue, setVenue] = useState('');
   const [newVenue, setNewVenue] = useState('');
   const [dateTime, setDateTime] = useState('');
   const [playerInput, setPlayerInput] = useState('');
-  const [players, setPlayers] = useState<string[]>([]);
 
-  useEffect(() => {
-    loadScheduledGames().then(setScheduled);
-    setVenues(loadVenues());
+  const loadScheduled = useCallback(async () => {
+    const games = await loadScheduledGames();
+    setScheduled(games);
   }, []);
 
-  const addPlayer = () => {
-    const name = playerInput.trim();
-    if (name && !players.includes(name)) {
-      setPlayers([...players, name]);
-      setPlayerInput('');
-    }
-  };
+  useEffect(() => {
+    loadScheduled();
+    setVenues(loadVenues());
+  }, [loadScheduled]);
 
-  const removePlayer = (idx: number) => {
-    setPlayers(players.filter((_, i) => i !== idx));
-  };
-
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     const finalVenue = newVenue.trim() || venue;
     if (!finalVenue || !dateTime || players.length === 0) return;
 
@@ -45,170 +41,231 @@ export function ScheduledGamesPage() {
     };
 
     await saveScheduledGame(game);
-    setScheduled(await loadScheduledGames());
+    await loadScheduled();
     setShowForm(false);
     setVenue('');
     setNewVenue('');
     setDateTime('');
-    setPlayers([]);
-  };
+    clearPlayers();
+  }, [newVenue, venue, dateTime, players, loadScheduled, clearPlayers]);
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = useCallback(async (id: string) => {
     await deleteScheduledGame(id);
-    setScheduled(await loadScheduledGames());
-  };
-
-  const formatDate = (iso: string) => {
-    const d = new Date(iso);
-    return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
-  };
-
-  const formatTime = (iso: string) => {
-    const d = new Date(iso);
-    return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-  };
-
-  const isPast = (iso: string) => {
-    return new Date(iso).getTime() < Date.now() - 30 * 60 * 1000;
-  };
+    await loadScheduled();
+  }, [loadScheduled]);
 
   return (
     <div className="page">
       <HeaderBack title="Запланированные" />
 
       {showForm ? (
-        <div className="card">
-          <h3 style={{ marginBottom: 16 }}>Новая запись</h3>
-
-          {/* Место */}
-          <div style={{ marginBottom: 16 }}>
-            <label className="form-label">📍 Место</label>
-            {venues.length > 0 && !newVenue ? (
-              <div>
-                <div className="preset-selector" style={{ marginBottom: 8 }}>
-                  {venues.map(v => (
-                    <div
-                      key={v}
-                      className={`preset-chip ${venue === v ? 'active' : ''}`}
-                      onClick={() => setVenue(v)}
-                      style={{ padding: '6px 12px', fontSize: 13 }}
-                    >
-                      {v}
-                    </div>
-                  ))}
-                </div>
-                <button className="btn btn-secondary btn-small" onClick={() => setNewVenue(' ')} style={{ fontSize: 12, padding: '6px 12px' }}>
-                  + Новое
-                </button>
-              </div>
-            ) : (
-              <input
-                className="input"
-                type="text"
-                placeholder="Название места"
-                value={newVenue}
-                onChange={e => setNewVenue(e.target.value)}
-                style={{ fontSize: 14, padding: '10px 14px' }}
-              />
-            )}
-          </div>
-
-          {/* Дата и время */}
-          <div style={{ marginBottom: 16 }}>
-            <label className="form-label">🕐 Дата и время</label>
-            <input
-              className="input"
-              type="datetime-local"
-              value={dateTime}
-              onChange={e => setDateTime(e.target.value)}
-              style={{ fontSize: 14, padding: '10px 14px' }}
-            />
-          </div>
-
-          {/* Игроки */}
-          <div style={{ marginBottom: 16 }}>
-            <label className="form-label">👥 Игроки</label>
-            <div className="add-player-form" style={{ marginBottom: 8 }}>
-              <input
-                className="input"
-                type="text"
-                placeholder="Имя игрока"
-                value={playerInput}
-                onChange={e => setPlayerInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && addPlayer()}
-              />
-              <button className="btn btn-primary btn-small" onClick={addPlayer}>+</button>
-            </div>
-            {players.length > 0 && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {players.map((name, i) => (
-                  <span key={i} style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 4,
-                    padding: '4px 10px', background: 'rgba(255,255,255,0.06)',
-                    borderRadius: 12, fontSize: 13,
-                  }}>
-                    {name}
-                    <span style={{ cursor: 'pointer', opacity: 0.5 }} onClick={() => removePlayer(i)}>×</span>
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn btn-primary btn-small" style={{ flex: 1 }} onClick={handleSave}>
-              💾 Сохранить
-            </button>
-            <button className="btn btn-secondary btn-small" style={{ flex: 1 }} onClick={() => setShowForm(false)}>
-              Отмена
-            </button>
-          </div>
-        </div>
+        <ScheduleForm
+          venues={venues}
+          venue={venue}
+          setVenue={setVenue}
+          newVenue={newVenue}
+          setNewVenue={setNewVenue}
+          dateTime={dateTime}
+          setDateTime={setDateTime}
+          playerInput={playerInput}
+          setPlayerInput={setPlayerInput}
+          players={players}
+          addPlayer={addPlayer}
+          removePlayer={removePlayer}
+          onSave={handleSave}
+          onCancel={() => setShowForm(false)}
+        />
       ) : (
         <button className="btn btn-secondary" onClick={() => setShowForm(true)}>
           + Запланировать игру
         </button>
       )}
 
-      {/* Список запланированных */}
       {scheduled.length > 0 && (
-        <div style={{ marginTop: 16 }}>
+        <div className="mt-16">
           {scheduled.map(game => (
-            <div key={game.id} className="card" style={{
-              opacity: isPast(game.scheduledAt) ? 0.5 : 1,
-              position: 'relative',
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: 15 }}>{game.venue}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
-                    {formatDate(game.scheduledAt)} в {formatTime(game.scheduledAt)}
-                  </div>
-                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4, opacity: 0.7 }}>
-                    👥 {game.players.join(', ')}
-                  </div>
-                </div>
-                <button
-                  className="btn btn-danger btn-icon btn-small"
-                  style={{ width: 44, height: 44, fontSize: 22 }}
-                  onClick={() => handleDelete(game.id)}
-                >
-                  ×
-                </button>
-              </div>
-            </div>
+            <ScheduledEntry
+              key={game.id}
+              game={game}
+              onDelete={() => handleDelete(game.id)}
+            />
           ))}
         </div>
       )}
 
       {scheduled.length === 0 && !showForm && (
-        <div className="card" style={{ textAlign: 'center', padding: 40, marginTop: 16 }}>
-          <div style={{ fontSize: 36, marginBottom: 8 }}>📅</div>
-          <p style={{ color: 'var(--text-secondary)' }}>Нет запланированных игр</p>
+        <div className="card text-center empty-state">
+          <div className="empty-state-icon">📅</div>
+          <p className="text-muted">Нет запланированных игр</p>
         </div>
       )}
 
       <div className="spacer" />
+    </div>
+  );
+}
+
+// === Sub-components ===
+
+function ScheduleForm({
+  venues, venue, setVenue, newVenue, setNewVenue,
+  dateTime, setDateTime, playerInput, setPlayerInput,
+  players, addPlayer, removePlayer,
+  onSave, onCancel,
+}: {
+  venues: string[];
+  venue: string; setVenue: (v: string) => void;
+  newVenue: string; setNewVenue: (v: string) => void;
+  dateTime: string; setDateTime: (v: string) => void;
+  playerInput: string; setPlayerInput: (v: string) => void;
+  players: string[];
+  addPlayer: (name: string) => void;
+  removePlayer: (idx: number) => void;
+  onSave: () => void;
+  onCancel: () => void;
+}) {
+  const handleAddPlayer = () => {
+    addPlayer(playerInput);
+    setPlayerInput('');
+  };
+
+  return (
+    <div className="card">
+      <h3 className="mb-16">Новая запись</h3>
+
+      <VenueSelector
+        venues={venues}
+        venue={venue}
+        setVenue={setVenue}
+        newVenue={newVenue}
+        setNewVenue={setNewVenue}
+      />
+
+      <div className="form-group">
+        <label className="form-label">🕐 Дата и время</label>
+        <input
+          className="input"
+          type="datetime-local"
+          value={dateTime}
+          onChange={e => setDateTime(e.target.value)}
+        />
+      </div>
+
+      <div className="form-group">
+        <label className="form-label">👥 Игроки</label>
+        <div className="add-player-form">
+          <input
+            className="input"
+            type="text"
+            placeholder="Имя игрока"
+            value={playerInput}
+            onChange={e => setPlayerInput(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleAddPlayer()}
+          />
+          <button className="btn btn-primary btn-small" onClick={() => addPlayer(playerInput)}>+</button>
+        </div>
+        {players.length > 0 && (
+          <div className="player-tags">
+            {players.map((name, i) => (
+              <span key={i} className="player-tag">
+                {name}
+                <span onClick={() => removePlayer(i)}>×</span>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="form-actions">
+        <button className="btn btn-primary btn-small" style={{ flex: 1 }} onClick={onSave}>
+          💾 Сохранить
+        </button>
+        <button className="btn btn-secondary btn-small" style={{ flex: 1 }} onClick={onCancel}>
+          Отмена
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function VenueSelector({
+  venues, venue, setVenue, newVenue, setNewVenue,
+}: {
+  venues: string[];
+  venue: string; setVenue: (v: string) => void;
+  newVenue: string; setNewVenue: (v: string) => void;
+}) {
+  const showInput = venues.length === 0 || newVenue !== '';
+
+  if (!showInput) {
+    return (
+      <div className="form-group">
+        <label className="form-label">📍 Место</label>
+        <div className="preset-selector mb-8">
+          {venues.map(v => (
+            <div
+              key={v}
+              className={`preset-chip ${venue === v ? 'active' : ''}`}
+              onClick={() => setVenue(v)}
+            >
+              {v}
+            </div>
+          ))}
+        </div>
+        <button className="btn btn-secondary btn-small" onClick={() => setNewVenue(' ')}>
+          + Новое
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="form-group">
+      <label className="form-label">📍 Место</label>
+      <input
+        className="input"
+        type="text"
+        placeholder="Название места"
+        value={newVenue}
+        onChange={e => setNewVenue(e.target.value)}
+      />
+      {venues.length > 0 && (
+        <button
+          className="btn btn-secondary btn-small mt-8"
+          onClick={() => { setNewVenue(''); }}
+        >
+          ← Выбрать
+        </button>
+      )}
+    </div>
+  );
+}
+
+function ScheduledEntry({ game, onDelete }: {
+  game: ScheduledGame;
+  onDelete: () => void;
+}) {
+  const past = isPast(game.scheduledAt, NEARBY_GAME_MARGIN);
+
+  return (
+    <div className={`card scheduled-entry ${past ? 'past' : ''}`}>
+      <div className="scheduled-header">
+        <div>
+          <div className="scheduled-venue font-bold">{game.venue}</div>
+          <div className="scheduled-time text-muted">
+            {formatDate(game.scheduledAt)} в {formatTime(game.scheduledAt)}
+          </div>
+          <div className="scheduled-players text-muted">
+            👥 {game.players.join(', ')}
+          </div>
+        </div>
+        <button
+          className="btn btn-danger btn-icon btn-small"
+          onClick={onDelete}
+        >
+          ×
+        </button>
+      </div>
     </div>
   );
 }
