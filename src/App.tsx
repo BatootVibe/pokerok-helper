@@ -8,7 +8,8 @@ import { GameTablePage } from './pages/GameTablePage';
 import { ChipCountPage } from './pages/ChipCountPage';
 import { ResultsPage } from './pages/ResultsPage';
 import { HistoryPage } from './pages/HistoryPage';
-import { ChipCalculatorPage } from './pages/ChipCalculatorPage';
+import { AnalyticsPage } from './pages/AnalyticsPage';
+import { PresetsPage } from './pages/PresetsPage';
 import { ScheduledGamesPage } from './pages/ScheduledGamesPage';
 import { SettingsPage } from './pages/SettingsPage';
 import './App.css';
@@ -46,7 +47,8 @@ function App() {
               }
             />
             <Route path="/history" element={<HistoryPage />} />
-            <Route path="/chips" element={<ChipCalculatorPage />} />
+            <Route path="/analytics" element={<AnalyticsPage />} />
+            <Route path="/presets" element={<PresetsPage />} />
             <Route path="/scheduled" element={<ScheduledGamesPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Routes>

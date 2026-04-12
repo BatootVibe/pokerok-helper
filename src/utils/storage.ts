@@ -185,12 +185,15 @@ export async function saveScheduledGame(game: ScheduledGame): Promise<void> {
     apiAvailable = false;
     apiLastFailTime = Date.now();
   }
-  // Обновляем localStorage
-  const games = await loadScheduledGames();
-  if (!games.some(g => g.id === game.id)) {
+  // Обновляем localStorage: заменяем существующую или добавляем новую
+  const games = JSON.parse(localStorage.getItem(LOCAL_SCHEDULED_KEY) || '[]');
+  const existingIdx = games.findIndex((g: ScheduledGame) => g.id === game.id);
+  if (existingIdx >= 0) {
+    games[existingIdx] = game;
+  } else {
     games.unshift(game);
-    localStorage.setItem(LOCAL_SCHEDULED_KEY, JSON.stringify(games));
   }
+  localStorage.setItem(LOCAL_SCHEDULED_KEY, JSON.stringify(games));
 }
 
 export async function deleteScheduledGame(id: string): Promise<void> {

@@ -56,9 +56,20 @@ export function CreateGamePage() {
     setShowNearbyPrompt(false);
   }, [nearbyGame, setPlayers]);
 
+  const dismissPrompt = useCallback(() => {
+    setShowNearbyPrompt(false);
+  }, []);
+
+  const skipAndDelete = useCallback(async () => {
+    if (nearbyGame) {
+      await deleteScheduledGame(nearbyGame.id);
+    }
+    setShowNearbyPrompt(false);
+  }, [nearbyGame]);
+
   const handleAddPlayer = useCallback(() => {
     const name = newPlayerName.trim();
-    if (name && !players.includes(name)) {
+    if (name && !players.includes(name) && players.length < 10) {
       addPlayer(name);
       setNewPlayerName('');
     }
@@ -66,8 +77,11 @@ export function CreateGamePage() {
 
   const handleAddLastPlayers = useCallback(() => {
     const newOnes = lastGamePlayers.filter(n => !players.includes(n));
-    if (newOnes.length > 0) {
-      setPlayers([...players, ...newOnes]);
+    const available = 10 - players.length;
+    if (available <= 0) return;
+    const toAdd = newOnes.slice(0, available);
+    if (toAdd.length > 0) {
+      setPlayers([...players, ...toAdd]);
     }
   }, [lastGamePlayers, players, setPlayers]);
 
@@ -100,13 +114,13 @@ export function CreateGamePage() {
       <HeaderBack title="Новая игра" />
 
       {showNearbyPrompt && nearbyGame && (
-        <NearbyPrompt venue={nearbyGame.venue} onAccept={useNearbyData} onSkip={() => setShowNearbyPrompt(false)} />
+        <NearbyPrompt venue={nearbyGame.venue} players={nearbyGame.players} onDismiss={dismissPrompt} onAccept={useNearbyData} onSkip={skipAndDelete} />
       )}
 
       <div className="card">
         <div className="card-header">
           <h3>Игроки</h3>
-          <span className="badge">{players.length}</span>
+          <span className="badge">{players.length}/10</span>
         </div>
         <div className="add-player-form">
           <input
@@ -117,11 +131,12 @@ export function CreateGamePage() {
             onChange={e => setNewPlayerName(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleAddPlayer()}
           />
-          <button className="btn btn-primary btn-small" onClick={handleAddPlayer}>+</button>
+          <button className="btn btn-primary btn-small" onClick={handleAddPlayer} disabled={players.length >= 10}>+</button>
           {lastGamePlayers.length > 0 && (
             <button
               className="btn btn-secondary btn-small"
               onClick={handleAddLastPlayers}
+              disabled={players.length >= 10}
               title="Добавить игроков из последней игры"
             >
               ↻
@@ -159,6 +174,7 @@ export function CreateGamePage() {
           setNewVenueName={setNewVenueName}
           showVenueInput={showVenueInput}
           setShowVenueInput={setShowVenueInput}
+          setVenues={setVenues}
         />
 
         <div className="settings-row">
@@ -199,7 +215,7 @@ export function CreateGamePage() {
       {presets.length > 0 ? (
         <div className="card">
           <h3 className="mb-12">🪙 Пресет фишек</h3>
-          <div className="preset-selector">
+          <div className="preset-selector preset-selector-centered">
             {presets.map(preset => (
               <div
                 key={preset.id}
@@ -214,7 +230,7 @@ export function CreateGamePage() {
       ) : (
         <div className="card text-center">
           <p className="text-muted mb-12">Нет сохранённых пресетов</p>
-          <button className="btn btn-secondary btn-small" onClick={() => navigate('/chips')}>
+          <button className="btn btn-secondary btn-small" onClick={() => navigate('/presets')}>
             🎯 Создать пресет
           </button>
         </div>
@@ -235,23 +251,27 @@ export function CreateGamePage() {
 
 // === Sub-components ===
 
-function NearbyPrompt({ venue, onAccept, onSkip }: {
+function NearbyPrompt({ venue, players, onDismiss, onAccept, onSkip }: {
   venue: string;
+  players: string[];
+  onDismiss: () => void;
   onAccept: () => void;
   onSkip: () => void;
 }) {
+  const display = players.slice(0, 5).join(', ') + (players.length > 5 ? '…' : '');
+
   return (
-    <div className="card card-warning">
+    <div className="card card-nearby">
       <div className="card-header">
-        <span className="font-semibold">📅 Запланированная игра</span>
-        <button className="btn-icon" onClick={onSkip}>×</button>
+        <h3>📅 Запланированная игра</h3>
+        <button className="btn-icon" onClick={onDismiss}>×</button>
       </div>
-      <p className="text-muted text-sm mb-12">
-        Найдена запись: <b>{venue}</b> с игроками
+      <p className="text-muted text-sm mb-8">
+        {venue} • {display}
       </p>
       <div className="form-actions">
         <button className="btn btn-primary btn-small" style={{ flex: 1 }} onClick={onAccept}>
-          ✅ Заполнить автоматически
+          Заполнить
         </button>
         <button className="btn btn-secondary btn-small" style={{ flex: 1 }} onClick={onSkip}>
           Пропустить
@@ -261,7 +281,7 @@ function NearbyPrompt({ venue, onAccept, onSkip }: {
   );
 }
 
-function VenueSection({ venues, selectedVenue, setSelectedVenue, newVenueName, setNewVenueName, showVenueInput, setShowVenueInput }: {
+function VenueSection({ venues, selectedVenue, setSelectedVenue, newVenueName, setNewVenueName, showVenueInput, setShowVenueInput, setVenues }: {
   venues: string[];
   selectedVenue: string;
   setSelectedVenue: (v: string) => void;
@@ -269,6 +289,7 @@ function VenueSection({ venues, selectedVenue, setSelectedVenue, newVenueName, s
   setNewVenueName: (v: string) => void;
   showVenueInput: boolean;
   setShowVenueInput: (v: boolean) => void;
+  setVenues: React.Dispatch<React.SetStateAction<string[]>>;
 }) {
   if (venues.length === 0 || showVenueInput) {
     return (
@@ -309,6 +330,7 @@ function VenueSection({ venues, selectedVenue, setSelectedVenue, newVenueName, s
               onClick={e => {
                 e.stopPropagation();
                 deleteVenue(v);
+                setVenues(prev => prev.filter(x => x !== v));
                 if (selectedVenue === v) setSelectedVenue('');
               }}
             >×</span>

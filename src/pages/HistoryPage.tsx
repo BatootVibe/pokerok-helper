@@ -1,17 +1,15 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { loadGameHistory, clearGameHistory, deleteCompletedGame } from '../utils/storage';
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { loadGameHistory, deleteCompletedGame } from '../utils/storage';
 import { CompletedGame } from '../types';
 import { HeaderBack } from '../components/HeaderBack';
 import { formatDate, formatTime } from '../utils/date';
-import { HOLD_DURATION, HOLD_INTERVAL } from '../utils/constants';
 
 export function HistoryPage() {
+  const navigate = useNavigate();
   const [history, setHistory] = useState<CompletedGame[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showConfirm, setShowConfirm] = useState(false);
   const [expandedGameId, setExpandedGameId] = useState<string | null>(null);
-  const [holdProgress, setHoldProgress] = useState(0);
-  const holdTimerRef = useRef<number | null>(null);
 
   const loadHistory = useCallback(() => {
     loadGameHistory()
@@ -23,42 +21,6 @@ export function HistoryPage() {
   useEffect(() => {
     loadHistory();
   }, [loadHistory]);
-
-  useEffect(() => {
-    return () => {
-      if (holdTimerRef.current) clearInterval(holdTimerRef.current);
-    };
-  }, []);
-
-  const startHold = useCallback(() => {
-    const start = Date.now();
-    const interval = setInterval(() => {
-      const elapsed = Date.now() - start;
-      const progress = Math.min(elapsed / HOLD_DURATION, 1);
-      setHoldProgress(progress);
-      if (progress >= 1) {
-        clearInterval(interval);
-        setShowConfirm(true);
-        setHoldProgress(0);
-        holdTimerRef.current = null;
-      }
-    }, HOLD_INTERVAL);
-    holdTimerRef.current = interval;
-  }, []);
-
-  const releaseHold = useCallback(() => {
-    if (holdTimerRef.current) {
-      clearInterval(holdTimerRef.current);
-      holdTimerRef.current = null;
-    }
-    setHoldProgress(0);
-  }, []);
-
-  const handleClearHistory = useCallback(async () => {
-    await clearGameHistory();
-    setHistory([]);
-    setShowConfirm(false);
-  }, []);
 
   const handleDeleteGame = useCallback(async (id: string) => {
     await deleteCompletedGame(id);
@@ -95,20 +57,12 @@ export function HistoryPage() {
       <div className="spacer" />
 
       {history.length > 0 && (
-        <HoldToDelete
-          startHold={startHold}
-          releaseHold={releaseHold}
-          holdProgress={holdProgress}
-        />
-      )}
-
-      {showConfirm && (
-        <ConfirmModal
-          title="🗑️ Очистить историю?"
-          desc="Все записи будут удалены безвозвратно."
-          onConfirm={handleClearHistory}
-          onCancel={() => setShowConfirm(false)}
-        />
+        <button
+          className="btn btn-secondary"
+          onClick={() => navigate('/analytics')}
+        >
+          📊 Аналитика
+        </button>
       )}
     </div>
   );
@@ -167,85 +121,6 @@ function PlayerResult({ player }: { player: CompletedGame['players'][number] }) 
       </div>
       <div className="player-result-meta">
         BI:{player.buyInQty} / RB:{player.rebuyQty}
-      </div>
-    </div>
-  );
-}
-
-function HoldToDelete({
-  startHold,
-  releaseHold,
-  holdProgress,
-}: {
-  startHold: () => void;
-  releaseHold: () => void;
-  holdProgress: number;
-}) {
-  const circumference = 2 * Math.PI * 10;
-  const offset = circumference * (1 - holdProgress);
-
-  return (
-    <div className="hold-to-delete">
-      {holdProgress > 0 && (
-        <div
-          className="hold-progress-bar"
-          style={{ width: `${holdProgress * 100}%` }}
-        />
-      )}
-      <button
-        className="btn btn-danger"
-        onMouseDown={startHold}
-        onMouseUp={releaseHold}
-        onMouseLeave={releaseHold}
-        onTouchStart={startHold}
-        onTouchEnd={releaseHold}
-        onTouchCancel={releaseHold}
-      >
-        {holdProgress > 0 ? (
-          <>
-            <svg width="20" height="20" viewBox="0 0 24 24" className="hold-spinner">
-              <circle cx="12" cy="12" r="10" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="2.5" />
-              <circle
-                cx="12" cy="12" r="10"
-                fill="none"
-                stroke="white"
-                strokeWidth="2.5"
-                strokeDasharray={circumference}
-                strokeDashoffset={offset}
-                strokeLinecap="round"
-                className="hold-spinner-progress"
-              />
-            </svg>
-            <span className="font-bold">{Math.max(0, Math.ceil((1 - holdProgress) * 10))}</span>
-            <span className="text-muted">сек</span>
-          </>
-        ) : (
-          '🗑️ Очистить историю'
-        )}
-      </button>
-    </div>
-  );
-}
-
-function ConfirmModal({ title, desc, onConfirm, onCancel }: {
-  title: string;
-  desc: string;
-  onConfirm: () => void;
-  onCancel: () => void;
-}) {
-  return (
-    <div className="modal-overlay">
-      <div className="card card-modal">
-        <h3 className="modal-title">{title}</h3>
-        <p className="modal-desc">{desc}</p>
-        <div className="modal-actions">
-          <button className="btn btn-danger btn-small" style={{ flex: 1 }} onClick={onConfirm}>
-            Удалить
-          </button>
-          <button className="btn btn-secondary btn-small" style={{ flex: 1 }} onClick={onCancel}>
-            Отмена
-          </button>
-        </div>
       </div>
     </div>
   );

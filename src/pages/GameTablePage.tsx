@@ -22,7 +22,7 @@ export function GameTablePage() {
 
   const handleAddPlayer = () => {
     const name = newPlayerName.trim();
-    if (name) {
+    if (name && currentGame.players.length < 10) {
       addPlayer(name);
       setNewPlayerName('');
     }
