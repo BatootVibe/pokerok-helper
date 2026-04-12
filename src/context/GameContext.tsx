@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { Game, GamePlayer } from '../types';
 import { GAMES_KEY, CURRENT_GAME_ID_KEY } from '../utils/constants';
+import { generateId } from '../utils/id';
 
 // === localStorage helpers (inline, изолированные) ===
 
@@ -27,12 +28,6 @@ function saveCurrentGameId(id: string) {
 
 function clearCurrentGameId() {
   localStorage.removeItem(CURRENT_GAME_ID_KEY);
-}
-
-// === generateId (локально, чтобы не тянуть из storage) ===
-
-function generateId(): string {
-  return Date.now().toString(36) + Math.random().toString(36).substring(2, 9);
 }
 
 // === Context ===
@@ -160,11 +155,21 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const finishGame = useCallback(() => {
-    // Чистая функция: только убирает currentGame
-    // Persistence обрабатывается useEffect выше
+    // Сначала flush-им pending save
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      const game = currentGame;
+      if (game) {
+        const games = loadGames();
+        games[game.id] = game;
+        saveGames(games);
+        saveCurrentGameId(game.id);
+      }
+      saveTimerRef.current = null;
+    }
     setCurrentGame(null);
     setSelectedPresetId(null);
-  }, []);
+  }, [currentGame]);
 
   // Очистка при финише (удаляем из localStorage)
   useEffect(() => {

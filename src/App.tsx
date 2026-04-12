@@ -51,6 +51,7 @@ function App() {
             <Route path="/presets" element={<PresetsPage />} />
             <Route path="/scheduled" element={<ScheduledGamesPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="*" element={<HomePage />} />
           </Routes>
         </BrowserRouter>
       </GameProvider>

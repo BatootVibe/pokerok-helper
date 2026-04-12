@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ScheduledGame } from '../types';
-import { loadScheduledGames, saveScheduledGame, deleteScheduledGame, generateId, loadVenues } from '../utils/storage';
+import { loadScheduledGames, saveScheduledGame, deleteScheduledGame, loadVenues } from '../utils/storage';
+import { generateId } from '../utils/id';
 import { HeaderBack } from '../components/HeaderBack';
 import { formatDate, formatTime, isPast } from '../utils/date';
 import { useNameList } from '../utils/hooks';
@@ -11,7 +12,6 @@ export function ScheduledGamesPage() {
   const [venues, setVenues] = useState<string[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingGame, setEditingGame] = useState<ScheduledGame | null>(null);
-  const [expandedGameId, setExpandedGameId] = useState<string | null>(null);
   const { names: players, add: addPlayer, remove: removePlayer, clear: clearPlayers } = useNameList();
 
   // Форма
@@ -32,16 +32,13 @@ export function ScheduledGamesPage() {
 
   const handleSave = useCallback(async () => {
     const finalVenue = newVenue.trim() || venue;
-    if (!finalVenue || !dateTime || players.length === 0) return;
+    if (!finalVenue || !dateTime || players.length < 2) return;
 
-    // Сохраняем дату в том же локальном времени, без сдвига в UTC
-    const localDate = new Date(dateTime);
-    const utcAdjusted = new Date(localDate.getTime() - localDate.getTimezoneOffset() * 60000);
-
+    // Храним время как "wall clock" без таймзоны — YYYY-MM-DDTHH:mm
     const game: ScheduledGame = {
       id: editingGame?.id || generateId(),
       venue: finalVenue,
-      scheduledAt: utcAdjusted.toISOString(),
+      scheduledAt: dateTime, // без конвертации в UTC
       players,
       createdAt: editingGame?.createdAt || new Date().toISOString(),
     };
@@ -56,16 +53,11 @@ export function ScheduledGamesPage() {
     clearPlayers();
   }, [newVenue, venue, dateTime, players, loadScheduled, clearPlayers, editingGame]);
 
-  const handleDelete = useCallback(async (id: string) => {
+  const handleDeleteFromForm = useCallback(async (id: string) => {
     await deleteScheduledGame(id);
     await loadScheduled();
-    setEditingGame(null);
     setShowForm(false);
-  }, [loadScheduled]);
-
-  const handleDeleteFromList = useCallback(async (id: string) => {
-    await deleteScheduledGame(id);
-    await loadScheduled();
+    setEditingGame(null);
   }, [loadScheduled]);
 
   return (
@@ -88,7 +80,7 @@ export function ScheduledGamesPage() {
           removePlayer={removePlayer}
           editingGame={editingGame}
           onSave={handleSave}
-          onDelete={editingGame ? () => handleDelete(editingGame.id) : undefined}
+          onDelete={editingGame ? () => handleDeleteFromForm(editingGame.id) : undefined}
           onCancel={() => {
             setShowForm(false);
             setEditingGame(null);
@@ -101,19 +93,16 @@ export function ScheduledGamesPage() {
               <ScheduledEntry
                 key={game.id}
                 game={game}
-                isExpanded={expandedGameId === game.id}
-                onToggleExpand={() => setExpandedGameId(prev => prev === game.id ? null : game.id)}
                 onEdit={() => {
                   setEditingGame(game);
                   setVenue(game.venue);
                   setNewVenue('');
-                  setDateTime(game.scheduledAt.slice(0, 16));
+                  // Загружаем время как есть — это уже wall clock time
+                  setDateTime(game.scheduledAt);
                   clearPlayers();
                   game.players.forEach(p => addPlayer(p));
                   setShowForm(true);
-                  setExpandedGameId(null);
                 }}
-                onDelete={handleDeleteFromList}
               />
             ))}
           </div>
@@ -123,6 +112,10 @@ export function ScheduledGamesPage() {
             Пока нет запланированных игр
           </div>
         )
+      )}
+
+      {scheduled.length > 0 && (
+        <p className="page-hint text-center">Удерживайте карточку 2 сек для редактирования</p>
       )}
 
       <div className="spacer" />
@@ -165,9 +158,9 @@ function ScheduleForm({
 
   return (
     <div className="card">
-      <h3 className="mb-16">{editingGame ? '✏️ Редактировать' : '📅 Новая запись'}</h3>
+      <h3 className="mb-16">{editingGame ? 'Редактировать' : 'Новая запись'}</h3>
       <div className="card-header">
-        <label className="form-label" style={{ marginBottom: 0 }}>👥 Игроки <span className="badge">{players.length}/10</span></label>
+        <label className="form-label" style={{ marginBottom: 0 }}>Игроки <span className="badge">{players.length}/10</span></label>
       </div>
 
       <VenueSelector
@@ -179,7 +172,7 @@ function ScheduleForm({
       />
 
       <div className="form-group">
-        <label className="form-label">🕐 Дата и время</label>
+        <label className="form-label">Дата и время</label>
         <input
           className="input"
           type="datetime-local"
@@ -189,7 +182,7 @@ function ScheduleForm({
       </div>
 
       <div className="form-group">
-        <label className="form-label">👥 Игроки</label>
+        <label className="form-label">Игроки</label>
         <div className="add-player-form">
           <input
             className="input"
@@ -211,10 +204,18 @@ function ScheduleForm({
             ))}
           </div>
         )}
+        {players.length < 2 && (
+          <p className="empty-text mt-8">Минимум 2 игрока</p>
+        )}
       </div>
 
       <div className="form-actions">
-        <button className="btn btn-primary btn-small" style={{ flex: 1 }} onClick={onSave}>
+        <button
+          className="btn btn-primary btn-small"
+          style={{ flex: 1 }}
+          onClick={onSave}
+          disabled={players.length < 2}
+        >
           💾 Сохранить
         </button>
         <button className="btn btn-secondary btn-small" style={{ flex: 1 }} onClick={onCancel}>
@@ -237,12 +238,12 @@ function VenueSelector({
   venue: string; setVenue: (v: string) => void;
   newVenue: string; setNewVenue: (v: string) => void;
 }) {
-  const showInput = venues.length === 0 || newVenue !== '';
+  const showInput = venues.length === 0 || newVenue === '_new_';
 
   if (!showInput) {
     return (
       <div className="form-group">
-        <label className="form-label">📍 Место</label>
+        <label className="form-label">Локация</label>
         <div className="preset-selector mb-8">
           {venues.map(v => (
             <div
@@ -254,7 +255,7 @@ function VenueSelector({
             </div>
           ))}
         </div>
-        <button className="btn btn-secondary btn-small" onClick={() => setNewVenue(' ')}>
+        <button className="btn btn-secondary btn-small" onClick={() => setNewVenue('_new_')}>
           + Новое
         </button>
       </div>
@@ -263,11 +264,11 @@ function VenueSelector({
 
   return (
     <div className="form-group">
-      <label className="form-label">📍 Место</label>
+      <label className="form-label">Локация</label>
       <input
         className="input"
         type="text"
-        placeholder="Название места"
+        placeholder="Где играем?"
         value={newVenue}
         onChange={e => setNewVenue(e.target.value)}
       />
@@ -283,12 +284,9 @@ function VenueSelector({
   );
 }
 
-function ScheduledEntry({ game, isExpanded, onToggleExpand, onEdit, onDelete }: {
+function ScheduledEntry({ game, onEdit }: {
   game: ScheduledGame;
-  isExpanded: boolean;
-  onToggleExpand: () => void;
   onEdit: () => void;
-  onDelete: (id: string) => void;
 }) {
   const past = isPast(game.scheduledAt, NEARBY_GAME_MARGIN);
   const holdTimerRef = useRef<number | null>(null);
@@ -328,11 +326,16 @@ function ScheduledEntry({ game, isExpanded, onToggleExpand, onEdit, onDelete }: 
   // Ring fills from 0 to full: dashoffset goes from circumference to 0
   const dashOffset = circumference * (1 - holdProgress);
 
+  useEffect(() => {
+    return () => {
+      if (holdTimerRef.current) clearInterval(holdTimerRef.current);
+    };
+  }, []);
+
   return (
     <div className={`card scheduled-entry ${past ? 'past' : ''}`}>
       <div
         className="scheduled-header"
-        onClick={onToggleExpand}
         onMouseDown={startHold}
         onMouseUp={releaseHold}
         onMouseLeave={releaseHold}
@@ -346,62 +349,25 @@ function ScheduledEntry({ game, isExpanded, onToggleExpand, onEdit, onDelete }: 
             {formatDate(game.scheduledAt)} в {formatTime(game.scheduledAt)}
           </div>
           <div className="scheduled-players text-muted">
-            👥 {game.players.join(', ')}
+            {game.players.join(', ')}
           </div>
+          {holdProgress > 0 && (
+            <svg width="28" height="28" viewBox="0 0 24 24" className="hold-spinner-corner" style={{ transform: 'rotate(-90deg)' }}>
+              <circle cx="12" cy="12" r="10" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="2" />
+              <circle
+                cx="12" cy="12" r="10"
+                fill="none"
+                stroke="var(--accent-gold)"
+                strokeWidth="2"
+                strokeDasharray={circumference}
+                strokeDashoffset={dashOffset}
+                strokeLinecap="round"
+                className="hold-spinner-progress"
+              />
+            </svg>
+          )}
         </div>
-        {holdProgress > 0 && (
-          <svg width="28" height="28" viewBox="0 0 24 24" className="hold-spinner" style={{ transform: 'rotate(-90deg)' }}>
-            <circle cx="12" cy="12" r="10" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="2" />
-            <circle
-              cx="12" cy="12" r="10"
-              fill="none"
-              stroke="var(--accent-gold)"
-              strokeWidth="2"
-              strokeDasharray={circumference}
-              strokeDashoffset={dashOffset}
-              strokeLinecap="round"
-              className="hold-spinner-progress"
-            />
-          </svg>
-        )}
       </div>
-      {isExpanded && (
-        <div className="scheduled-details">
-          <div className="detail-row">
-            <span className="detail-label">Создано:</span>
-            <span>{formatDate(game.createdAt)} в {formatTime(game.createdAt)}</span>
-          </div>
-          <div className="detail-row">
-            <span className="detail-label">Время до встречи:</span>
-            <span>{formatTimeTo(game.scheduledAt)}</span>
-          </div>
-          <div className="detail-row">
-            <span className="detail-label">Игроков:</span>
-            <span>{game.players.length}</span>
-          </div>
-          <div className="scheduled-detail-actions">
-            <button className="btn btn-danger btn-small" onClick={(e) => { e.stopPropagation(); onDelete(game.id); }}>
-              🗑️ Удалить
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
-}
-
-function formatTimeTo(iso: string): string {
-  const now = new Date();
-  const target = new Date(iso);
-  const diff = target.getTime() - now.getTime();
-
-  if (diff < 0) return 'Прошла';
-
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-  const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-  const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-
-  if (days > 0) return `${days} дн. ${hours} ч.`;
-  if (hours > 0) return `${hours} ч. ${mins} мин.`;
-  return `${mins} мин.`;
 }

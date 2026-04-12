@@ -90,7 +90,7 @@ export function AnalyticsPage() {
           <div className="card">
             <h3 className="card-title-center">👥 Топ игроков</h3>
             {topPlayers.map((p, i) => (
-              <div key={p.name} className="top-player-row">
+              <div key={`${p.name}-${i}`} className="top-player-row">
                 <span className="top-player-rank">#{i + 1}</span>
                 <span className="top-player-name">{p.name}</span>
                 <span className={`top-player-profit ${p.profit >= 0 ? 'result-positive' : 'result-negative'}`}>

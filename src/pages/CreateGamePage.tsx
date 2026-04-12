@@ -23,6 +23,15 @@ export function CreateGamePage() {
   const [lastGamePlayers, setLastGamePlayers] = useState<string[]>([]);
   const [nearbyGame, setNearbyGame] = useState<{ id: string; venue: string; players: string[] } | null>(null);
   const [showNearbyPrompt, setShowNearbyPrompt] = useState(false);
+  const [showPresetDropdown, setShowPresetDropdown] = useState(false);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    if (!showPresetDropdown) return;
+    const handler = () => setShowPresetDropdown(false);
+    document.addEventListener('click', handler);
+    return () => document.removeEventListener('click', handler);
+  }, [showPresetDropdown]);
 
   useEffect(() => {
     loadPresets().then(p => setPresets(p.filter(x => Array.isArray(x.chips))));
@@ -90,7 +99,7 @@ export function CreateGamePage() {
     : null;
 
   const handleCreate = useCallback(() => {
-    if (players.length === 0 || !startingChips || !buyInRubles || !selectedPresetId) return;
+    if (players.length < 2 || !startingChips || !buyInRubles || !selectedPresetId) return;
 
     const venue = newVenueName.trim() || selectedVenue || 'Не указано';
     if (newVenueName.trim() && !venues.includes(newVenueName.trim())) {
@@ -113,15 +122,55 @@ export function CreateGamePage() {
     <div className="page">
       <HeaderBack title="Новая игра" />
 
-      {showNearbyPrompt && nearbyGame && (
-        <NearbyPrompt venue={nearbyGame.venue} players={nearbyGame.players} onDismiss={dismissPrompt} onAccept={useNearbyData} onSkip={skipAndDelete} />
-      )}
+      <div className="card card-preset-selector">
+        <div className="preset-selector-row">
+          <label className="preset-selector-label">Пресет</label>
+          <div className="preset-dropdown">
+            <button
+              className="preset-dropdown-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowPresetDropdown(!showPresetDropdown);
+              }}
+            >
+              {selectedPresetId
+                ? presets.find(p => p.id === selectedPresetId)?.name || '—'
+                : 'Выбрать'
+              }
+              <span className={`preset-dropdown-arrow ${showPresetDropdown ? 'open' : ''}`}>▾</span>
+            </button>
+            {showPresetDropdown && (
+              <div className="preset-dropdown-menu" onClick={(e) => e.stopPropagation()}>
+                {presets.map(preset => (
+                  <div
+                    key={preset.id}
+                    className={`preset-dropdown-item ${selectedPresetId === preset.id ? 'active' : ''}`}
+                    onClick={() => {
+                      setSelectedPresetId(preset.id);
+                      setShowPresetDropdown(false);
+                    }}
+                  >
+                    {preset.name}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <button
+            className="btn btn-link btn-small"
+            onClick={() => navigate('/presets', { state: { fromCreate: true } })}
+          >
+            Настроить
+          </button>
+        </div>
+      </div>
 
       <div className="card">
-        <div className="card-header">
+        <div className="card-header-centered">
           <h3>Игроки</h3>
           <span className="badge">{players.length}/10</span>
         </div>
+
         <div className="add-player-form">
           <input
             className="input"
@@ -158,13 +207,36 @@ export function CreateGamePage() {
             ))}
           </div>
         )}
-        {players.length === 0 && (
-          <p className="empty-text mt-8">Добавьте хотя бы одного игрока</p>
+        {players.length < 2 && (
+          <p className="empty-text mt-8">Добавьте минимум 2 игроков</p>
+        )}
+
+        {showNearbyPrompt && nearbyGame && (
+          <div className="nearby-inline">
+            <div className="nearby-info">
+              <span className="nearby-venue">{nearbyGame.venue}</span>
+              <span className="nearby-sep">•</span>
+              <span className="nearby-count">{nearbyGame.players.length} {nearbyGame.players.length === 1 ? 'игрок' : nearbyGame.players.length < 5 ? 'игрока' : 'игроков'}</span>
+              <span className="nearby-sep">•</span>
+              <span className="nearby-players-list">{nearbyGame.players.slice(0, 3).join(', ')}{nearbyGame.players.length > 3 ? '…' : ''}</span>
+            </div>
+            <div className="nearby-actions">
+              <button className="btn btn-primary btn-small" onClick={useNearbyData}>
+                Заполнить
+              </button>
+              <button className="btn btn-danger btn-small" onClick={skipAndDelete}>
+                Пропустить
+              </button>
+              <button className="btn btn-ghost btn-small" onClick={dismissPrompt}>
+                Скрыть
+              </button>
+            </div>
+          </div>
         )}
       </div>
 
       <div className="card">
-        <h3 className="mb-16">⚙️ Настройки</h3>
+        <h3 className="card-title-center">Настройки</h3>
 
         <VenueSection
           venues={venues}
@@ -179,7 +251,7 @@ export function CreateGamePage() {
 
         <div className="settings-row">
           <div className="settings-field">
-            <label className="form-label">Стартовые очки</label>
+            <label className="form-label">Очки</label>
             <input
               className="input input-center input-bold"
               type="number"
@@ -212,71 +284,22 @@ export function CreateGamePage() {
         </div>
       </div>
 
-      {presets.length > 0 ? (
-        <div className="card">
-          <h3 className="mb-12">🪙 Пресет фишек</h3>
-          <div className="preset-selector preset-selector-centered">
-            {presets.map(preset => (
-              <div
-                key={preset.id}
-                className={`preset-chip ${selectedPresetId === preset.id ? 'active' : ''}`}
-                onClick={() => setSelectedPresetId(preset.id)}
-              >
-                {preset.name}
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : (
-        <div className="card text-center">
-          <p className="text-muted mb-12">Нет сохранённых пресетов</p>
-          <button className="btn btn-secondary btn-small" onClick={() => navigate('/presets')}>
-            🎯 Создать пресет
-          </button>
-        </div>
-      )}
-
       <div className="spacer" />
 
       <button
         className="btn btn-primary mt-16"
         onClick={handleCreate}
-        disabled={players.length === 0 || !startingChips || !buyInRubles || !selectedPresetId}
+        disabled={!selectedPresetId || players.length < 2 || !startingChips || !buyInRubles}
       >
-        {selectedPresetId ? 'Продолжить' : 'Выберите пресет фишек'}
+        {!selectedPresetId
+          ? 'Выберите пресет'
+          : players.length < 2
+            ? 'Минимум 2 игрока'
+            : !startingChips || !buyInRubles
+              ? 'Заполните все поля'
+              : 'Продолжить'
+        }
       </button>
-    </div>
-  );
-}
-
-// === Sub-components ===
-
-function NearbyPrompt({ venue, players, onDismiss, onAccept, onSkip }: {
-  venue: string;
-  players: string[];
-  onDismiss: () => void;
-  onAccept: () => void;
-  onSkip: () => void;
-}) {
-  const display = players.slice(0, 5).join(', ') + (players.length > 5 ? '…' : '');
-
-  return (
-    <div className="card card-nearby">
-      <div className="card-header">
-        <h3>📅 Запланированная игра</h3>
-        <button className="btn-icon" onClick={onDismiss}>×</button>
-      </div>
-      <p className="text-muted text-sm mb-8">
-        {venue} • {display}
-      </p>
-      <div className="form-actions">
-        <button className="btn btn-primary btn-small" style={{ flex: 1 }} onClick={onAccept}>
-          Заполнить
-        </button>
-        <button className="btn btn-secondary btn-small" style={{ flex: 1 }} onClick={onSkip}>
-          Пропустить
-        </button>
-      </div>
     </div>
   );
 }
@@ -294,11 +317,11 @@ function VenueSection({ venues, selectedVenue, setSelectedVenue, newVenueName, s
   if (venues.length === 0 || showVenueInput) {
     return (
       <div className="form-group">
-        <label className="form-label">📍 Место</label>
+        <label className="form-label form-label-center">Локация</label>
         <input
           className="input"
           type="text"
-          placeholder="Название места"
+          placeholder="Где играем?"
           value={newVenueName}
           onChange={e => setNewVenueName(e.target.value)}
         />
@@ -316,7 +339,7 @@ function VenueSection({ venues, selectedVenue, setSelectedVenue, newVenueName, s
 
   return (
     <div className="form-group">
-      <label className="form-label">📍 Место</label>
+      <label className="form-label form-label-center">Локация</label>
       <div className="preset-selector mb-8">
         {venues.map(v => (
           <div
@@ -337,7 +360,7 @@ function VenueSection({ venues, selectedVenue, setSelectedVenue, newVenueName, s
           </div>
         ))}
       </div>
-      <button className="btn btn-secondary btn-small" onClick={() => setShowVenueInput(true)}>
+      <button className="btn btn-secondary btn-small btn-center" onClick={() => setShowVenueInput(true)}>
         + Новое
       </button>
     </div>

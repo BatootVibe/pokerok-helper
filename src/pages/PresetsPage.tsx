@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ChipPreset, ChipEntry, ChipColor } from '../types';
-import { loadPresets, savePresets, generateId, deletePreset } from '../utils/storage';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { ChipPreset, ChipEntry, ChipColor, CHIP_COLOR_MAP } from '../types';
+import { loadPresets, savePresets, deletePreset } from '../utils/storage';
+import { generateId } from '../utils/id';
 import { DEFAULT_CHIP_ENTRIES } from '../utils/constants';
-import { CHIP_COLOR_MAP } from '../types';
 import { HeaderBack } from '../components/HeaderBack';
 import { HOLD_INTERVAL } from '../utils/constants';
 
@@ -11,6 +12,10 @@ const ALL_COLORS: ChipColor[] = [
 ];
 
 export function PresetsPage() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const fromCreate = location.state?.fromCreate === true;
+
   const [presets, setPresets] = useState<ChipPreset[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
@@ -91,13 +96,18 @@ export function PresetsPage() {
       updated = [...presets, newPreset];
     }
 
-    setPresets(updated);
     await savePresets(updated);
+    setPresets(updated);
     setShowForm(false);
     setEditingPresetId(null);
     setNewPresetName('');
     setChipEntries(DEFAULT_CHIP_ENTRIES);
-  }, [newPresetName, chipEntries, presets, editingPresetId]);
+
+    // Если пришли со страницы создания игры и создали пресет — вернуться назад
+    if (fromCreate && !editingPresetId) {
+      navigate(-1);
+    }
+  }, [newPresetName, chipEntries, presets, editingPresetId, fromCreate, navigate]);
 
   const handleDeletePreset = useCallback(async (id: string) => {
     await deletePreset(id);
@@ -110,10 +120,15 @@ export function PresetsPage() {
       <HeaderBack title="Пресеты фишек" />
 
       {!showForm && (
-        <PresetList
-          presets={presets}
-          onEdit={openEdit}
-        />
+        <>
+          <PresetList
+            presets={presets}
+            onEdit={openEdit}
+          />
+          {presets.length > 0 && (
+            <p className="page-hint text-center">Удерживайте карточку 2 сек для редактирования</p>
+          )}
+        </>
       )}
 
       {showForm ? (
@@ -166,7 +181,7 @@ function PresetList({ presets, onEdit }: {
   }
 
   return (
-    <div style={{ marginBottom: 8 }}>
+    <div className="preset-list">
       {presets.map(preset => (
         <PresetListItem
           key={preset.id}
@@ -216,10 +231,18 @@ function PresetListItem({ preset, onEdit }: {
   const circumference = 2 * Math.PI * 8;
   const dashOffset = circumference * (1 - holdProgress);
 
+  useEffect(() => {
+    return () => {
+      if (holdTimerRef.current) clearInterval(holdTimerRef.current);
+    };
+  }, []);
+
+  const sortedChips = preset.chips.slice().sort((a, b) => a.nominal - b.nominal);
+
   return (
-    <div className="preset-list-item">
+    <div className="preset-card">
       <div
-        className="preset-list-info"
+        className="preset-card-header"
         onMouseDown={startHold}
         onMouseUp={releaseHold}
         onMouseLeave={releaseHold}
@@ -227,36 +250,35 @@ function PresetListItem({ preset, onEdit }: {
         onTouchEnd={releaseHold}
         onTouchCancel={releaseHold}
       >
-        <span className="preset-list-name">{preset.name}</span>
-        <div className="preset-list-chips">
-          {preset.chips
-            .slice()
-            .sort((a, b) => a.nominal - b.nominal)
-            .map((chip, i) => {
-              const isLight = ['white', 'yellow', 'pink'].includes(chip.color);
-              return (
-                <span key={i} className={`preset-chip-mini ${isLight ? 'light-chip' : ''}`} style={{ background: CHIP_COLOR_MAP[chip.color] }}>
-                  <span className="preset-chip-mini-nominal">{chip.nominal}</span>
-                </span>
-              );
-            })}
+        <div className="preset-card-title">
+          <span className="preset-card-name">{preset.name}</span>
+          {holdProgress > 0 && (
+            <svg width="28" height="28" viewBox="0 0 24 24" className="hold-spinner-corner" style={{ transform: 'rotate(-90deg)' }}>
+              <circle cx="12" cy="12" r="10" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="2" />
+              <circle
+                cx="12" cy="12" r="10"
+                fill="none"
+                stroke="var(--accent-gold)"
+                strokeWidth="2"
+                strokeDasharray={circumference}
+                strokeDashoffset={dashOffset}
+                strokeLinecap="round"
+                className="hold-spinner-progress"
+              />
+            </svg>
+          )}
+        </div>
+        <div className="preset-card-chips">
+          {sortedChips.map((chip, i) => {
+            const isLight = ['white', 'yellow', 'pink'].includes(chip.color);
+            return (
+              <span key={i} className={`preset-chip-display ${isLight ? 'light-chip' : ''}`} style={{ background: CHIP_COLOR_MAP[chip.color] }}>
+                <span className="preset-chip-nominal">{chip.nominal}</span>
+              </span>
+            );
+          })}
         </div>
       </div>
-      {holdProgress > 0 && (
-        <svg width="28" height="28" viewBox="0 0 24 24" className="hold-spinner" style={{ transform: 'rotate(-90deg)' }}>
-          <circle cx="12" cy="12" r="10" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="2" />
-          <circle
-            cx="12" cy="12" r="10"
-            fill="none"
-            stroke="var(--accent-gold)"
-            strokeWidth="2"
-            strokeDasharray={circumference}
-            strokeDashoffset={dashOffset}
-            strokeLinecap="round"
-            className="hold-spinner-progress"
-          />
-        </svg>
-      )}
     </div>
   );
 }
@@ -278,10 +300,6 @@ function PresetForm({
   onCancel: () => void;
   canAddMore: boolean;
 }) {
-  const handleDelete = () => {
-    onRemovePreset?.();
-  };
-
   return (
     <div className="card">
       <h3 className="mb-16">{isEditing ? '✏️ Редактировать пресет' : '✨ Новый пресет'}</h3>
@@ -299,7 +317,7 @@ function PresetForm({
       <label className="form-label chips-label">Фишки</label>
       {chipEntries.map((entry, index) => (
         <ChipEntryRow
-          key={entry.color}
+          key={index}
           entry={entry}
           onChangeColor={() => onChangeColor(index)}
           onUpdateNominal={v => onUpdateNominal(index, v)}
@@ -321,7 +339,7 @@ function PresetForm({
           Отмена
         </button>
         {isEditing && (
-          <button className="btn btn-danger btn-small" onClick={handleDelete}>
+          <button className="btn btn-danger btn-small" onClick={() => onRemovePreset?.()}>
             🗑️
           </button>
         )}

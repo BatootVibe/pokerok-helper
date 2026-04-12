@@ -70,13 +70,23 @@ export async function addCompletedGame(game: CompletedGame): Promise<void> {
   try {
     await apiSaveGame(game);
     // Обновляем localStorage для консистентности
-    const history = JSON.parse(localStorage.getItem(LOCAL_HISTORY_KEY) || '[]');
+    let history: CompletedGame[] = [];
+    try {
+      history = JSON.parse(localStorage.getItem(LOCAL_HISTORY_KEY) || '[]');
+    } catch {
+      // corrupted data, start fresh
+    }
     history.unshift(game);
     localStorage.setItem(LOCAL_HISTORY_KEY, JSON.stringify(history));
   } catch {
     apiAvailable = false;
     apiLastFailTime = Date.now();
-    const history = JSON.parse(localStorage.getItem(LOCAL_HISTORY_KEY) || '[]');
+    let history: CompletedGame[] = [];
+    try {
+      history = JSON.parse(localStorage.getItem(LOCAL_HISTORY_KEY) || '[]');
+    } catch {
+      // corrupted
+    }
     history.unshift(game);
     localStorage.setItem(LOCAL_HISTORY_KEY, JSON.stringify(history));
   }
@@ -90,7 +100,12 @@ export async function deleteCompletedGame(id: string): Promise<void> {
     apiLastFailTime = Date.now();
   }
   // Удаляем из localStorage в любом случае
-  const history = JSON.parse(localStorage.getItem(LOCAL_HISTORY_KEY) || '[]');
+  let history: CompletedGame[] = [];
+  try {
+    history = JSON.parse(localStorage.getItem(LOCAL_HISTORY_KEY) || '[]');
+  } catch {
+    // corrupted
+  }
   const updated = history.filter((g: CompletedGame) => g.id !== id);
   localStorage.setItem(LOCAL_HISTORY_KEY, JSON.stringify(updated));
 }
@@ -142,17 +157,15 @@ export async function deletePreset(id: string): Promise<void> {
   localStorage.setItem(LOCAL_PRESETS_KEY, JSON.stringify(updated));
 }
 
-// === ID generation ===
-
-export function generateId(): string {
-  return Date.now().toString(36) + Math.random().toString(36).substring(2, 9);
-}
-
 // === Venues (localStorage only) ===
 
 export function loadVenues(): string[] {
   const data = localStorage.getItem(LOCAL_VENUES_KEY);
-  return data ? JSON.parse(data) : [];
+  try {
+    return data ? JSON.parse(data) : [];
+  } catch {
+    return [];
+  }
 }
 
 export function saveVenue(name: string): void {
@@ -186,7 +199,12 @@ export async function saveScheduledGame(game: ScheduledGame): Promise<void> {
     apiLastFailTime = Date.now();
   }
   // Обновляем localStorage: заменяем существующую или добавляем новую
-  const games = JSON.parse(localStorage.getItem(LOCAL_SCHEDULED_KEY) || '[]');
+  let games: ScheduledGame[] = [];
+  try {
+    games = JSON.parse(localStorage.getItem(LOCAL_SCHEDULED_KEY) || '[]');
+  } catch {
+    // corrupted
+  }
   const existingIdx = games.findIndex((g: ScheduledGame) => g.id === game.id);
   if (existingIdx >= 0) {
     games[existingIdx] = game;
