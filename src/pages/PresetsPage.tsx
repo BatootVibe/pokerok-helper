@@ -21,6 +21,18 @@ export function PresetsPage() {
   const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
   const [newPresetName, setNewPresetName] = useState('');
   const [chipEntries, setChipEntries] = useState<ChipEntry[]>(DEFAULT_CHIP_ENTRIES);
+  const [isDuplicateName, setIsDuplicateName] = useState(false);
+
+  useEffect(() => {
+    if (!newPresetName.trim()) {
+      setIsDuplicateName(false);
+      return;
+    }
+    const isDup = presets.some(p =>
+      p.name.toLowerCase() === newPresetName.trim().toLowerCase() && p.id !== editingPresetId
+    );
+    setIsDuplicateName(isDup);
+  }, [newPresetName, presets, editingPresetId]);
 
   useEffect(() => {
     loadPresets().then(presets => {
@@ -81,7 +93,7 @@ export function PresetsPage() {
     if (!name || chipEntries.length === 0) return;
 
     const validChips = chipEntries.filter(e => e.nominal > 0);
-    if (validChips.length === 0) return;
+    if (validChips.length === 0 || isDuplicateName) return;
 
     const newPreset: ChipPreset = {
       id: editingPresetId || generateId(),
@@ -103,8 +115,9 @@ export function PresetsPage() {
     setNewPresetName('');
     setChipEntries(DEFAULT_CHIP_ENTRIES);
 
-    // Если пришли со страницы создания игры и создали пресет — вернуться назад
+    // Если пришли со страницы создания игры и создали пресет — вернуться с ID нового пресета
     if (fromCreate && !editingPresetId) {
+      sessionStorage.setItem('pendingPresetId', newPreset.id);
       navigate(-1);
     }
   }, [newPresetName, chipEntries, presets, editingPresetId, fromCreate, navigate]);
@@ -137,6 +150,7 @@ export function PresetsPage() {
           setName={setNewPresetName}
           chipEntries={chipEntries}
           isEditing={editingPresetId !== null}
+          isDuplicateName={isDuplicateName}
           onChangeColor={changeChipColor}
           onUpdateNominal={(i, v) => updateChipEntry(i, 'nominal', v)}
           onRemove={(i) => setChipEntries(prev => prev.filter((_, idx) => idx !== i))}
@@ -154,12 +168,11 @@ export function PresetsPage() {
           canAddMore={chipEntries.length < ALL_COLORS.length}
         />
       ) : (
-        <>
-          <div className="spacer" />
+        <div className="fixed-actions">
           <button className="btn btn-secondary" onClick={openNew}>
             ✨ Новый пресет
           </button>
-        </>
+        </div>
       )}
     </div>
   );
@@ -284,13 +297,14 @@ function PresetListItem({ preset, onEdit }: {
 }
 
 function PresetForm({
-  name, setName, chipEntries, isEditing,
+  name, setName, chipEntries, isEditing, isDuplicateName,
   onChangeColor, onUpdateNominal, onRemove, onAdd, onSave, onRemovePreset, onCancel,
   canAddMore,
 }: {
   name: string; setName: (v: string) => void;
   chipEntries: ChipEntry[];
   isEditing: boolean;
+  isDuplicateName: boolean;
   onChangeColor: (i: number) => void;
   onUpdateNominal: (i: number, v: number) => void;
   onRemove: (i: number) => void;
@@ -312,6 +326,9 @@ function PresetForm({
           value={name}
           onChange={e => setName(e.target.value)}
         />
+        {isDuplicateName && (
+          <p className="error-text mt-4">Пресет с таким названием уже существует</p>
+        )}
       </div>
 
       <label className="form-label chips-label">Фишки</label>
@@ -332,7 +349,7 @@ function PresetForm({
       )}
 
       <div className="form-actions">
-        <button className="btn btn-primary btn-small" style={{ flex: 1 }} onClick={onSave}>
+        <button className="btn btn-primary btn-small" style={{ flex: 1 }} onClick={onSave} disabled={isDuplicateName}>
           💾 {isEditing ? 'Сохранить' : 'Создать'}
         </button>
         <button className="btn btn-secondary btn-small" style={{ flex: 1 }} onClick={onCancel}>

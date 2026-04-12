@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { loadGameHistory, deleteCompletedGame } from '../utils/storage';
 import { CompletedGame } from '../types';
@@ -54,15 +54,15 @@ export function HistoryPage() {
         ))
       )}
 
-      <div className="spacer" />
-
       {history.length > 0 && (
-        <button
-          className="btn btn-secondary"
-          onClick={() => navigate('/analytics')}
-        >
-          📊 Аналитика
-        </button>
+        <div className="fixed-actions">
+          <button
+            className="btn btn-secondary"
+            onClick={() => navigate('/analytics')}
+          >
+            📊 Аналитика
+          </button>
+        </div>
       )}
     </div>
   );
@@ -76,6 +76,40 @@ function GameEntry({ game, isExpanded, onToggle, onDelete }: {
   onToggle: () => void;
   onDelete: () => void;
 }) {
+  const [activeTab, setActiveTab] = useState<'results' | 'debts'>('results');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  const transfers = useMemo(() => {
+    const balances = game.players
+      .map(p => ({ name: p.playerName, amount: Math.round(p.rubles - p.spentRubles) }))
+      .filter(b => b.amount !== 0);
+
+    const debtors = balances
+      .filter(b => b.amount < 0)
+      .map(b => ({ name: b.name, amount: -b.amount }))
+      .sort((a, b) => b.amount - a.amount);
+
+    const creditors = balances
+      .filter(b => b.amount > 0)
+      .sort((a, b) => b.amount - a.amount);
+
+    const transfers: { from: string; to: string; amount: number }[] = [];
+    let i = 0, j = 0;
+
+    while (i < debtors.length && j < creditors.length) {
+      const amount = Math.min(debtors[i].amount, creditors[j].amount);
+      if (amount > 0) {
+        transfers.push({ from: debtors[i].name, to: creditors[j].name, amount });
+      }
+      debtors[i].amount -= amount;
+      creditors[j].amount -= amount;
+      if (debtors[i].amount === 0) i++;
+      if (creditors[j].amount === 0) j++;
+    }
+
+    return transfers;
+  }, [game.players]);
+
   return (
     <div className="history-entry">
       <div
@@ -93,12 +127,80 @@ function GameEntry({ game, isExpanded, onToggle, onDelete }: {
       </div>
       {isExpanded && (
         <div className="history-details">
-          {game.players.map(player => (
-            <PlayerResult key={player.playerId} player={player} />
-          ))}
-          <button className="btn btn-danger btn-small mt-8" onClick={onDelete}>
-            Удалить запись
-          </button>
+          <div className="result-tabs">
+            <button
+              className={`result-tab ${activeTab === 'results' ? 'active' : ''}`}
+              onClick={(e) => { e.stopPropagation(); setActiveTab('results'); }}
+            >
+              📊 Результаты
+            </button>
+            <button
+              className={`result-tab ${activeTab === 'debts' ? 'active' : ''}`}
+              onClick={(e) => { e.stopPropagation(); setActiveTab('debts'); }}
+            >
+              💸 Расчёт
+            </button>
+          </div>
+
+          {activeTab === 'results' && (
+            <div className="player-grid">
+              {game.players.map(player => (
+                <PlayerResult key={player.playerId} player={player} />
+              ))}
+            </div>
+          )}
+
+          {activeTab === 'debts' && (
+            <div className="player-grid">
+              {transfers.length > 0 ? (
+                transfers.map((t, i) => (
+                  <div key={i} className="player-result debt-card">
+                    <div className="debt-players">
+                      <span className="debt-from">{t.from}</span>
+                      <span className="debt-arrow">→</span>
+                      <span className="debt-to">{t.to}</span>
+                    </div>
+                    <div className="result-negative debt-amount">{t.amount} ₽</div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-muted text-center" style={{ gridColumn: '1 / -1' }}>Никто никому не должен</p>
+              )}
+            </div>
+          )}
+
+          <div className="full-width">
+            <button className="btn btn-danger btn-small" onClick={() => setShowDeleteConfirm(true)}>
+              Удалить запись
+            </button>
+          </div>
+
+          {showDeleteConfirm && (
+            <div className="modal-overlay" onClick={() => setShowDeleteConfirm(false)}>
+              <div className="card card-modal" onClick={(e) => e.stopPropagation()}>
+                <h3 className="modal-title">🗑️ Удалить запись?</h3>
+                <p className="modal-desc">
+                  {formatDate(game.date)} • {game.venue || 'Не указано'}
+                </p>
+                <div className="modal-actions">
+                  <button
+                    className="btn btn-danger btn-small"
+                    style={{ flex: 1 }}
+                    onClick={() => { onDelete(); setShowDeleteConfirm(false); }}
+                  >
+                    Удалить
+                  </button>
+                  <button
+                    className="btn btn-secondary btn-small"
+                    style={{ flex: 1 }}
+                    onClick={() => setShowDeleteConfirm(false)}
+                  >
+                    Отмена
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

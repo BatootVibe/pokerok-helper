@@ -1,3 +1,4 @@
+import { useState, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useGame } from '../context/GameContext';
 import { addCompletedGame } from '../utils/storage';
@@ -10,6 +11,42 @@ export function ResultsPage() {
   const { currentGame, finishGame } = useGame();
 
   const results: GameResult[] = location.state?.results || [];
+  const [activeTab, setActiveTab] = useState<'results' | 'debts'>('results');
+
+  const transfers = useMemo(() => {
+    // Рассчитываем чистый баланс каждого игрока
+    const balances = results
+      .map(p => ({ name: p.playerName, amount: Math.round(p.rubles - p.spentRubles) }))
+      .filter(b => b.amount !== 0);
+
+    // Разделяем на должников (отрицательный баланс) и кредиторов (положительный)
+    // Сортируем по убыванию абсолютной суммы — крупные долги гасим первыми
+    const debtors = balances
+      .filter(b => b.amount < 0)
+      .map(b => ({ name: b.name, amount: -b.amount }))
+      .sort((a, b) => b.amount - a.amount);
+
+    const creditors = balances
+      .filter(b => b.amount > 0)
+      .sort((a, b) => b.amount - a.amount);
+
+    const transfers: { from: string; to: string; amount: number }[] = [];
+    let i = 0, j = 0;
+
+    // Жадный алгоритм: крупнейший должник ↔ крупнейший кредитор
+    while (i < debtors.length && j < creditors.length) {
+      const amount = Math.min(debtors[i].amount, creditors[j].amount);
+      if (amount > 0) {
+        transfers.push({ from: debtors[i].name, to: creditors[j].name, amount });
+      }
+      debtors[i].amount -= amount;
+      creditors[j].amount -= amount;
+      if (debtors[i].amount === 0) i++;
+      if (creditors[j].amount === 0) j++;
+    }
+
+    return transfers;
+  }, [results]);
 
   if (!currentGame || results.length === 0) {
     return (
@@ -41,44 +78,111 @@ export function ResultsPage() {
 
   return (
     <div className="page">
-      <HeaderBack title="Таблица игроков" />
+      <HeaderBack title="Результат игры" />
 
       <div className="card">
-        <h3 className="card-title-center">📊 Результаты</h3>
-        <table className="result-table">
-          <thead>
-            <tr>
-              <th>Игрок</th>
-              <th>Было</th>
-              <th>Стало</th>
-              <th>Рубли</th>
-            </tr>
-          </thead>
-          <tbody>
-            {results.map(result => {
-              const isPositive = result.rubles > result.spentRubles;
-              const diff = result.rubles - result.spentRubles;
-              const rubleClass = isPositive ? 'result-positive' : 'result-negative';
+        <div className="result-tabs">
+          <button
+            className={`result-tab ${activeTab === 'results' ? 'active' : ''}`}
+            onClick={() => setActiveTab('results')}
+          >
+            📊 Результаты
+          </button>
+          <button
+            className={`result-tab ${activeTab === 'debts' ? 'active' : ''}`}
+            onClick={() => setActiveTab('debts')}
+          >
+            💸 Расчёт
+          </button>
+        </div>
 
-              return (
-                <tr key={result.playerId}>
-                  <td className="font-semibold">{result.playerName}</td>
-                  <td>{result.wasChips}</td>
-                  <td>{result.becameChips}</td>
-                  <td className={rubleClass}>
-                    {result.rubles.toFixed(0)} ₽
-                    <span className="diff-text"> ({diff > 0 ? '+' : ''}{diff.toFixed(0)} ₽)</span>
+        {activeTab === 'results' && (
+          <>
+            <table className="result-table">
+              <thead>
+                <tr>
+                  <th>Игрок</th>
+                  <th>Было <span className="text-muted">pts</span></th>
+                  <th>Стало <span className="text-muted">pts</span></th>
+                  <th>Рубли</th>
+                </tr>
+              </thead>
+              <tbody>
+                {results.map(result => {
+                  const isPositive = result.rubles > result.spentRubles;
+                  const diff = result.rubles - result.spentRubles;
+                  const rubleClass = isPositive ? 'result-positive' : 'result-negative';
+
+                  return (
+                    <tr key={result.playerId}>
+                      <td className="font-semibold">{result.playerName}</td>
+                      <td>{result.wasChips} pts</td>
+                      <td>{result.becameChips} pts</td>
+                      <td className={rubleClass}>
+                        {result.rubles.toFixed(0)} ₽
+                        <span className="diff-text"> ({diff > 0 ? '+' : ''}{diff.toFixed(0)} ₽)</span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td className="font-bold">Итого</td>
+                  <td>{results.reduce((sum, r) => sum + r.wasChips, 0)} pts</td>
+                  <td>{results.reduce((sum, r) => sum + r.becameChips, 0)} pts</td>
+                  <td className={(() => {
+                    const diff = results.reduce((sum, r) => sum + r.wasChips, 0) - results.reduce((sum, r) => sum + r.becameChips, 0);
+                    return diff === 0 ? 'result-positive' : 'result-negative';
+                  })()}>
+                    {(() => {
+                      const diff = results.reduce((sum, r) => sum + r.wasChips, 0) - results.reduce((sum, r) => sum + r.becameChips, 0);
+                      const sign = diff > 0 ? '-' : diff < 0 ? '+' : '';
+                      return `${sign}${Math.abs(diff)} pts`;
+                    })()}
                   </td>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
+              </tfoot>
+            </table>
+          </>
+        )}
+
+        {activeTab === 'debts' && (
+          <>
+            {transfers.length > 0 ? (
+              <table className="result-table">
+                <thead>
+                  <tr>
+                    <th>Кто платит</th>
+                    <th>Кому</th>
+                    <th>Сумма</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {transfers.map((t, i) => (
+                    <tr key={i}>
+                      <td>{t.from}</td>
+                      <td>{t.to}</td>
+                      <td className="result-negative">{t.amount} ₽</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <div className="empty-state">
+                <div className="empty-state-icon">✅</div>
+                Никто никому не должен
+              </div>
+            )}
+          </>
+        )}
       </div>
 
-      <button className="btn btn-success mt-16 btn-lg" onClick={handleFinish}>
-        ✅ Завершить и сохранить
-      </button>
+      <div className="fixed-actions">
+        <button className="btn btn-success" onClick={handleFinish}>
+          ✅ Завершить и сохранить
+        </button>
+      </div>
     </div>
   );
 }

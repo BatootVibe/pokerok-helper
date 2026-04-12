@@ -22,7 +22,8 @@ export function GameTablePage() {
 
   const handleAddPlayer = () => {
     const name = newPlayerName.trim();
-    if (name && currentGame.players.length < 10) {
+    const isDuplicate = currentGame.players.some(p => p.name.toLowerCase() === name.toLowerCase());
+    if (name && !isDuplicate && currentGame.players.length < 10) {
       addPlayer(name);
       setNewPlayerName('');
     }
@@ -88,20 +89,22 @@ export function GameTablePage() {
         </div>
       </div>
 
-      <div className="spacer" />
-
-      <button
-        className="btn btn-success mt-16 btn-lg"
-        onClick={() => navigate('/chips-count')}
-      >
-        💰 Считаемся
-      </button>
-      <button
-        className="btn btn-danger mt-16 btn-sm"
-        onClick={() => setShowConfirm(true)}
-      >
-        Завершить игру
-      </button>
+      <div className="fixed-actions">
+        <div className="form-actions">
+          <button
+            className="btn btn-secondary"
+            onClick={() => setShowConfirm(true)}
+          >
+            Отмена
+          </button>
+          <button
+            className="btn btn-success"
+            onClick={() => navigate('/chips-count')}
+          >
+            Подсчёт
+          </button>
+        </div>
+      </div>
 
       {/* Модальное окно подтверждения */}
       {showConfirm && (

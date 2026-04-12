@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { Game, GamePlayer } from '../types';
-import { GAMES_KEY, CURRENT_GAME_ID_KEY } from '../utils/constants';
+import { GAMES_KEY, CURRENT_GAME_ID_KEY, CHIP_INPUTS_KEY } from '../utils/constants';
 import { generateId } from '../utils/id';
 
 // === localStorage helpers (inline, изолированные) ===
@@ -164,6 +164,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
         games[game.id] = game;
         saveGames(games);
         saveCurrentGameId(game.id);
+        // Очищаем введённые фишки
+        localStorage.removeItem(CHIP_INPUTS_KEY + game.id);
       }
       saveTimerRef.current = null;
     }
@@ -180,6 +182,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         delete games[prevId];
         saveGames(games);
         clearCurrentGameId();
+        localStorage.removeItem(CHIP_INPUTS_KEY + prevId);
       }
     }
   }, [currentGame, initialized]);

@@ -4,6 +4,7 @@ import { useGame } from '../context/GameContext';
 import { loadPresets } from '../utils/storage';
 import { ChipPreset, CHIP_COLOR_MAP, GameResult } from '../types';
 import { HeaderBack } from '../components/HeaderBack';
+import { CHIP_INPUTS_KEY } from '../utils/constants';
 
 export function ChipCountPage() {
   const navigate = useNavigate();
@@ -12,9 +13,27 @@ export function ChipCountPage() {
   const [presets, setPresets] = useState<ChipPreset[]>([]);
   const [chipInputs, setChipInputs] = useState<Record<string, Record<number, number>>>({});
 
+  // Restore saved inputs from localStorage
   useEffect(() => {
     loadPresets().then(p => setPresets(p));
-  }, []);
+
+    if (currentGame) {
+      const saved = localStorage.getItem(CHIP_INPUTS_KEY + currentGame.id);
+      if (saved) {
+        try {
+          setChipInputs(JSON.parse(saved));
+        } catch {
+          // ignore
+        }
+      }
+    }
+  }, [currentGame]);
+
+  // Save inputs to localStorage on every change
+  useEffect(() => {
+    if (!currentGame || Object.keys(chipInputs).length === 0) return;
+    localStorage.setItem(CHIP_INPUTS_KEY + currentGame.id, JSON.stringify(chipInputs));
+  }, [chipInputs, currentGame]);
 
   const selectedPreset = presets.find(p =>
     p.id === selectedPresetId && Array.isArray(p.chips)
@@ -99,7 +118,7 @@ export function ChipCountPage() {
           <div className="card-header">
             <h3>{player.name}</h3>
             <span className="text-muted text-sm">
-              Было: <b>{currentGame.startingChips * (1 + player.rebuyQty)}</b>
+              Было: <b>{currentGame.startingChips * (1 + player.rebuyQty)} pts</b>
             </span>
           </div>
           <div className="chip-grid">
@@ -118,9 +137,11 @@ export function ChipCountPage() {
         </div>
       ))}
 
-      <button className="btn btn-primary mt-16 btn-lg" onClick={goResults}>
-        📊 Рассчитать
-      </button>
+      <div className="fixed-actions">
+        <button className="btn btn-primary" onClick={goResults}>
+          📊 Рассчитать
+        </button>
+      </div>
     </div>
   );
 }

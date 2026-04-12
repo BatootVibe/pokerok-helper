@@ -118,13 +118,13 @@ export function ScheduledGamesPage() {
         <p className="page-hint text-center">Удерживайте карточку 2 сек для редактирования</p>
       )}
 
-      <div className="spacer" />
-
-      {!showForm && (
-        <button className="btn btn-secondary" onClick={() => setShowForm(true)}>
-          + Запланировать игру
-        </button>
-      )}
+      <div className="fixed-actions">
+        {!showForm && (
+          <button className="btn btn-secondary" onClick={() => setShowForm(true)}>
+            + Запланировать игру
+          </button>
+        )}
+      </div>
     </div>
   );
 }

@@ -5,6 +5,7 @@ export const LOCAL_HISTORY_KEY = 'poker_game_history';
 export const LOCAL_PRESETS_KEY = 'poker_chip_presets';
 export const LOCAL_VENUES_KEY = 'poker_venues';
 export const LOCAL_SCHEDULED_KEY = 'poker_scheduled_games';
+export const CHIP_INPUTS_KEY = 'poker_chip_inputs_';
 
 // Time constants (ms)
 export const HOLD_DURATION = 10_000; // 10 seconds for long-press delete

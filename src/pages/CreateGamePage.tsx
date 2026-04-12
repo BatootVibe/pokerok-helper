@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useGame } from '../context/GameContext';
 import { loadPresets, loadVenues, saveVenue, deleteVenue, loadGameHistory, findNearbyScheduledGame, deleteScheduledGame } from '../utils/storage';
 import { HeaderBack } from '../components/HeaderBack';
@@ -8,6 +8,7 @@ import { useNameList } from '../utils/hooks';
 
 export function CreateGamePage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { createGame } = useGame();
 
   const { names: players, add: addPlayer, remove: removePlayer, setNames: setPlayers } = useNameList();
@@ -16,6 +17,7 @@ export function CreateGamePage() {
   const [buyInRubles, setBuyInRubles] = useState('250');
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
   const [presets, setPresets] = useState<ChipPreset[]>([]);
+  const appliedPresetRef = useRef<string | null>(null);
   const [venues, setVenues] = useState<string[]>([]);
   const [selectedVenue, setSelectedVenue] = useState('');
   const [newVenueName, setNewVenueName] = useState('');
@@ -48,6 +50,17 @@ export function CreateGamePage() {
       }
     });
   }, []);
+
+  // Auto-select preset when returning from preset creation
+  useEffect(() => {
+    // Проверяем sessionStorage (от navigate(-1)) и location.state (fallback)
+    const presetId = sessionStorage.getItem('pendingPresetId') || location.state?.selectedPresetId;
+    if (presetId && appliedPresetRef.current !== presetId) {
+      setSelectedPresetId(presetId);
+      appliedPresetRef.current = presetId;
+      sessionStorage.removeItem('pendingPresetId');
+    }
+  }, [location.state]);
 
   const useNearbyData = useCallback(async () => {
     if (nearbyGame) {
@@ -251,7 +264,7 @@ export function CreateGamePage() {
 
         <div className="settings-row">
           <div className="settings-field">
-            <label className="form-label">Очки</label>
+            <label className="form-label">Очки (pts)</label>
             <input
               className="input input-center input-bold"
               type="number"
@@ -284,22 +297,22 @@ export function CreateGamePage() {
         </div>
       </div>
 
-      <div className="spacer" />
-
-      <button
-        className="btn btn-primary mt-16"
-        onClick={handleCreate}
-        disabled={!selectedPresetId || players.length < 2 || !startingChips || !buyInRubles}
-      >
-        {!selectedPresetId
-          ? 'Выберите пресет'
-          : players.length < 2
-            ? 'Минимум 2 игрока'
-            : !startingChips || !buyInRubles
-              ? 'Заполните все поля'
-              : 'Продолжить'
-        }
-      </button>
+      <div className="fixed-actions">
+        <button
+          className="btn btn-primary"
+          onClick={handleCreate}
+          disabled={!selectedPresetId || players.length < 2 || !startingChips || !buyInRubles}
+        >
+          {!selectedPresetId
+            ? 'Выберите пресет'
+            : players.length < 2
+              ? 'Минимум 2 игрока'
+              : !startingChips || !buyInRubles
+                ? 'Заполните все поля'
+                : 'Продолжить'
+          }
+        </button>
+      </div>
     </div>
   );
 }

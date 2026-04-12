@@ -17,14 +17,14 @@ export function HomePage() {
     ? [
         { icon: '🃏', title: 'Продолжить', sub: `${currentGame.players.length} игроков`, path: '/table', highlight: true },
         { icon: '📅', title: 'Расписание', sub: 'Запланированные игры', path: '/scheduled' },
-        { icon: '🏆', title: 'История', sub: 'Результаты прошлых игр', path: '/history' },
-        { icon: '⚙️', title: 'Настройки', sub: 'Пресеты фишек', path: '/settings' },
+        { icon: '🏆', title: 'История', sub: '', path: '/history' },
+        { icon: '⚙️', title: 'Настройки', sub: '', path: '/settings' },
       ]
     : [
         { icon: '🎰', title: 'Новая игра', sub: 'Создать стол и начать', path: '/create', highlight: true },
         { icon: '📅', title: 'Расписание', sub: 'Запланированные игры', path: '/scheduled' },
-        { icon: '🏆', title: 'История', sub: 'Результаты прошлых игр', path: '/history' },
-        { icon: '⚙️', title: 'Настройки', sub: 'Пресеты фишек', path: '/settings' },
+        { icon: '🏆', title: 'История', sub: '', path: '/history' },
+        { icon: '⚙️', title: 'Настройки', sub: '', path: '/settings' },
       ];
 
   return (
@@ -41,7 +41,7 @@ export function HomePage() {
             <span className="home-card-icon">{card.icon}</span>
             <div className="home-card-text">
               <div className="home-card-title">{card.title}</div>
-              <div className="home-card-sub">{card.sub}</div>
+              {card.sub && <div className="home-card-sub">{card.sub}</div>}
             </div>
           </button>
         ))}
