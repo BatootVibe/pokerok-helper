@@ -24,7 +24,7 @@ export function GameTablePage() {
     const name = newPlayerName.trim();
     const isDuplicate = currentGame.players.some(p => p.name.toLowerCase() === name.toLowerCase());
     if (name && !isDuplicate && currentGame.players.length < 10) {
-      addPlayer(name);
+      addPlayer({ name });
       setNewPlayerName('');
     }
   };

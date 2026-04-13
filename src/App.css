@@ -878,6 +878,100 @@ body::before {
   box-shadow: 0 2px 8px rgba(226, 183, 20, 0.3);
 }
 
+/* === Player Autocomplete === */
+
+.player-autocomplete-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.autocomplete-input-row {
+  display: flex;
+  gap: 8px;
+  position: relative;
+}
+
+.autocomplete-list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  list-style: none;
+  margin: 4px 0 0 0;
+  padding: 4px;
+  z-index: 100;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.autocomplete-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+  font-size: 14px;
+}
+
+.autocomplete-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.autocomplete-item.linked {
+  color: var(--accent-gold);
+}
+
+.tg-badge {
+  font-size: 10px;
+  background: rgba(0, 136, 204, 0.2);
+  color: #4fc3f7;
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.tg-icon {
+  margin-right: 4px;
+  font-size: 12px;
+}
+
+/* === Player Tags === */
+
+.player-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.player-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 6px 10px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.player-tag-remove {
+  cursor: pointer;
+  opacity: 0.6;
+  margin-left: 4px;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.player-tag-remove:hover {
+  opacity: 1;
+  color: var(--accent-red);
+}
+
 /* === Result Table === */
 
 .result-table {

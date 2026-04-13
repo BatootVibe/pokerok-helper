@@ -47,6 +47,7 @@ export interface ChipPreset {
 export interface GamePlayer {
   id: string;
   name: string;
+  tgId?: string; // Telegram ID привязанного пользователя
   rebuyQty: number; // количество ребай
 }
 

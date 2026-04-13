@@ -34,8 +34,8 @@ function clearCurrentGameId() {
 
 interface GameContextType {
   currentGame: Game | null;
-  createGame: (players: string[], startingChips: number, buyInRubles: number, chipPresetId: string | null, venue: string) => void;
-  addPlayer: (name: string) => void;
+  createGame: (players: { name: string; tgId?: string }[], startingChips: number, buyInRubles: number, chipPresetId: string | null, venue: string) => void;
+  addPlayer: (player: { name: string; tgId?: string }) => void;
   incrementRebuy: (playerId: string) => void;
   decrementRebuy: (playerId: string) => void;
   removePlayer: (playerId: string) => void;
@@ -89,10 +89,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
     };
   }, [currentGame, initialized]);
 
-  const createGame = useCallback((players: string[], startingChips: number, buyInRubles: number, chipPresetId: string | null, venue: string) => {
-    const gamePlayers: GamePlayer[] = players.map(name => ({
+  const createGame = useCallback((players: { name: string; tgId?: string }[], startingChips: number, buyInRubles: number, chipPresetId: string | null, venue: string) => {
+    const gamePlayers: GamePlayer[] = players.map(p => ({
       id: generateId(),
-      name,
+      name: p.name,
+      tgId: p.tgId,
       rebuyQty: 0,
     }));
 
@@ -111,10 +112,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setSelectedPresetId(chipPresetId);
   }, []);
 
-  const addPlayer = useCallback((name: string) => {
+  const addPlayer = useCallback((player: { name: string; tgId?: string }) => {
     setCurrentGame(prev => {
       if (!prev) return prev;
-      const newPlayer: GamePlayer = { id: generateId(), name, rebuyQty: 0 };
+      const newPlayer: GamePlayer = { id: generateId(), name: player.name, tgId: player.tgId, rebuyQty: 0 };
       return { ...prev, players: [...prev.players, newPlayer] };
     });
   }, []);
