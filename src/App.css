@@ -1619,6 +1619,49 @@ body::before {
   background: rgba(255, 255, 255, 0.15);
 }
 
+/* === Nearby Game Prompt (inside Players card) === */
+
+.nearby-game-prompt {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.nearby-game-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.nearby-game-venue {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.nearby-game-players {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.nearby-game-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.btn-nearby-hide {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text-primary);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.btn-nearby-hide:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
 .add-player-form {
   display: flex;
   gap: 8px;

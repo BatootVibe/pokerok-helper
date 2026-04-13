@@ -139,24 +139,6 @@ export function CreateGamePage() {
     <div className="page">
       <HeaderBack title="Новая игра" />
 
-      {/* Промпт о запланированной игре */}
-      {showNearbyPrompt && nearbyGame && (
-        <div className="card card-nearby">
-          <div className="card-header">
-            <h3>📅 Запланированная игра</h3>
-            <button className="btn-icon" onClick={dismissPrompt}>×</button>
-          </div>
-          <div className="nearby-info">
-            <div className="nearby-venue">{nearbyGame.venue}</div>
-            <div className="nearby-players">{nearbyGame.players.join(', ')}</div>
-          </div>
-          <div className="nearby-actions">
-            <button className="btn btn-primary btn-small" onClick={useNearbyData}>Заполнить</button>
-            <button className="btn btn-danger btn-small" onClick={skipAndDelete}>Пропустить</button>
-          </div>
-        </div>
-      )}
-
       {/* Выбор пресета (выпадающий список + кнопка Настроить) */}
       <div className="card card-preset-selector">
         <div className="preset-selector-row">
@@ -213,6 +195,21 @@ export function CreateGamePage() {
           onAddPlayer={addPlayer}
           onRemovePlayer={removePlayer}
         />
+
+        {/* Запланированная игра */}
+        {showNearbyPrompt && nearbyGame && (
+          <div className="nearby-game-prompt">
+            <div className="nearby-game-info">
+              <span className="nearby-game-venue">📍 {nearbyGame.venue}</span>
+              <span className="nearby-game-players">{nearbyGame.players.join(', ')}</span>
+            </div>
+            <div className="nearby-game-actions">
+              <button className="btn btn-primary btn-small" onClick={useNearbyData}>Играть</button>
+              <button className="btn btn-danger btn-small" onClick={skipAndDelete}>Пропустить</button>
+              <button className="btn btn-secondary btn-small btn-nearby-hide" onClick={dismissPrompt}>Скрыть</button>
+            </div>
+          </div>
+        )}
 
         {players.length < 2 && (
           <p className="empty-text mt-8">Добавьте минимум 2 игроков</p>
