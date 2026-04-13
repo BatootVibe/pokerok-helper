@@ -14,6 +14,7 @@ export function SettingsPage() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [showBindModal, setShowBindModal] = useState(false);
   const [bindName, setBindName] = useState('');
+  const [bindError, setBindError] = useState('');
   const [userProfile, setUserProfile] = useState<{ name: string; tgId: string } | null>(null);
 
   // Получаем Telegram ID
@@ -29,11 +30,17 @@ export function SettingsPage() {
 
   const handleBind = async () => {
     if (!bindName.trim() || !currentTgId) return;
-    
-    await saveUserProfile({ name: bindName.trim(), tgId: currentTgId });
-    setUserProfile({ name: bindName.trim(), tgId: currentTgId });
-    setBindName('');
-    setShowBindModal(false);
+
+    setBindError('');
+    const result = await saveUserProfile({ name: bindName.trim(), tgId: currentTgId });
+
+    if (result.success) {
+      setUserProfile({ name: bindName.trim(), tgId: currentTgId });
+      setBindName('');
+      setShowBindModal(false);
+    } else {
+      setBindError(result.error || 'Ошибка при привязке');
+    }
   };
 
   const handleClear = useCallback(async () => {
@@ -101,12 +108,13 @@ export function SettingsPage() {
           <div className="card card-modal">
             <h3 className="modal-title">🔗 Привязка аккаунта</h3>
             <p className="modal-desc">Введите имя, которое будут видеть другие игроки</p>
+            {bindError && <p className="error-text">{bindError}</p>}
             <input
               className="input"
               type="text"
               placeholder="Ваше имя (например, Саня)"
               value={bindName}
-              onChange={e => setBindName(e.target.value)}
+              onChange={e => { setBindName(e.target.value); setBindError(''); }}
               onKeyDown={e => e.key === 'Enter' && handleBind()}
               autoFocus
             />

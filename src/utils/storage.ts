@@ -268,14 +268,17 @@ export async function getUserProfile(tgId: string): Promise<{ name: string; tgId
   }
 }
 
-export async function saveUserProfile(profile: { name: string; tgId: string }): Promise<void> {
+export async function saveUserProfile(profile: { name: string; tgId: string }): Promise<{ success: boolean; error?: string }> {
   // Всегда сохраняем в localStorage
   localStorage.setItem(LOCAL_USER_PROFILE_KEY + profile.tgId, JSON.stringify(profile));
 
   try {
     await apiPost('/api/users', profile);
-  } catch (e) {
+    return { success: true };
+  } catch (e: any) {
     console.error('Failed to save profile to API', e);
+    const errorBody = e?.body as { error?: string } | undefined;
+    return { success: false, error: errorBody?.error || 'Ошибка сохранения' };
   }
 }
 

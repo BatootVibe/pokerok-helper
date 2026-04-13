@@ -116,7 +116,9 @@ export function ChipCountPage() {
       {currentGame.players.map(player => (
         <div key={player.id} className="card card-finish">
           <div className="card-header">
-            <h3>{player.name}</h3>
+            <h3 className={player.tgId ? 'verified-player' : ''}>
+              {player.name}
+            </h3>
             <span className="text-muted text-sm">
               Было: <b>{currentGame.startingChips * (1 + player.rebuyQty)} pts</b>
             </span>

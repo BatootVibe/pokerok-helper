@@ -85,10 +85,13 @@ export function PlayerAutocomplete({ players, onAddPlayer, onRemovePlayer, maxPl
     }
 
     const query = input.trim().toLowerCase();
-    const existingNames = players.map(p => p.name.toLowerCase());
+    // Защита: фильтруем только валидные объекты с name
+    const validAll = allPlayers.filter((p): p is { name: string; tgId?: string } => p && typeof p.name === 'string');
+    const validPlayers = players.filter((p): p is Player => p && typeof p.name === 'string');
+    const existingNames = validPlayers.map(p => p.name.toLowerCase());
 
     // Только имена, начинающиеся с запроса
-    const matches = allPlayers.filter(p =>
+    const matches = validAll.filter(p =>
       p.name.toLowerCase().startsWith(query) && !existingNames.includes(p.name.toLowerCase())
     );
 
@@ -105,7 +108,8 @@ export function PlayerAutocomplete({ players, onAddPlayer, onRemovePlayer, maxPl
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && input.trim()) {
       e.preventDefault();
-      const existingNames = players.map(p => p.name.toLowerCase());
+      const validPlayers = players.filter(p => p && typeof p.name === 'string');
+      const existingNames = validPlayers.map(p => p.name.toLowerCase());
       // Если есть точное совпадение — выбираем его
       const exact = suggestions.find(s => s.name.toLowerCase() === input.trim().toLowerCase());
       if (exact) {
@@ -120,12 +124,11 @@ export function PlayerAutocomplete({ players, onAddPlayer, onRemovePlayer, maxPl
   return (
     <div className="player-autocomplete-wrapper" ref={wrapperRef}>
       {/* Список уже добавленных игроков */}
-      {players.length > 0 && (
+      {players.filter(p => p && p.name).length > 0 && (
         <div className="player-tags">
-          {players.map((p, i) => (
+          {players.filter(p => p && p.name).map((p, i) => (
             <span key={`${p.name}-${i}`} className="player-tag">
-              {p.tgId && <span className="tg-icon">✈️</span>}
-              {p.name}
+              <span className={p.tgId ? 'verified-player' : ''}>{p.name}</span>
               <span className="player-tag-remove" onClick={() => onRemovePlayer(i)}>×</span>
             </span>
           ))}
@@ -146,7 +149,8 @@ export function PlayerAutocomplete({ players, onAddPlayer, onRemovePlayer, maxPl
         <button
           className="btn btn-primary btn-small autocomplete-add-btn"
           onClick={() => {
-            if (input.trim() && !players.some(p => p.name.toLowerCase() === input.trim().toLowerCase()) && players.length < maxPlayers) {
+            const validPlayers = players.filter(p => p && typeof p.name === 'string');
+            if (input.trim() && !validPlayers.some(p => p.name.toLowerCase() === input.trim().toLowerCase()) && validPlayers.length < maxPlayers) {
               const exact = suggestions.find(s => s.name.toLowerCase() === input.trim().toLowerCase());
               handleSelect(exact || { name: input.trim() });
             }
@@ -156,15 +160,24 @@ export function PlayerAutocomplete({ players, onAddPlayer, onRemovePlayer, maxPl
           +
         </button>
         {/* Кнопка добавить из последней игры (иконка только) */}
-        {(window as any).lastGamePlayers?.length > 0 && (
+        {(window as any).lastGamePlayerNames?.length > 0 && (
           <button
             className="btn btn-secondary btn-small autocomplete-history-btn"
             onClick={() => {
-              const lastPlayers = (window as any).lastGamePlayers as Player[];
-              const existingNames = new Set(players.map(p => p.name.toLowerCase()));
-              const newOnes = lastPlayers.filter(p => !existingNames.has(p.name.toLowerCase()));
-              const availableSlots = maxPlayers - players.length;
-              newOnes.slice(0, availableSlots).forEach(p => onAddPlayer(p));
+              const lastNames = (window as any).lastGamePlayerNames as string[];
+              const validPlayers = players.filter(p => p && typeof p.name === 'string');
+              const validAll = allPlayers.filter(p => p && typeof p.name === 'string');
+              const existingNames = new Set(validPlayers.map(p => p.name.toLowerCase()));
+              const availableSlots = maxPlayers - validPlayers.length;
+              let added = 0;
+              for (const name of lastNames) {
+                if (added >= availableSlots) break;
+                if (existingNames.has(name.toLowerCase())) continue;
+                // Ищем в allPlayers привязку
+                const linked = validAll.find(p => p.name.toLowerCase() === name.toLowerCase());
+                onAddPlayer(linked || { name });
+                added++;
+              }
             }}
             disabled={players.length >= maxPlayers}
             title="Добавить из последней игры"
@@ -185,8 +198,7 @@ export function PlayerAutocomplete({ players, onAddPlayer, onRemovePlayer, maxPl
                 className={`autocomplete-item ${isLinked ? 'linked' : ''}`}
                 onClick={() => handleSelect(s)}
               >
-                <span>{s.name}</span>
-                {isLinked && <span className="tg-badge">TG</span>}
+                <span className={isLinked ? 'verified-player' : ''}>{s.name}</span>
               </li>
             );
           })}

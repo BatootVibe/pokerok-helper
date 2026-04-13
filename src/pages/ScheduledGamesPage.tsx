@@ -4,21 +4,20 @@ import { loadScheduledGames, saveScheduledGame, deleteScheduledGame, loadVenues 
 import { generateId } from '../utils/id';
 import { HeaderBack } from '../components/HeaderBack';
 import { formatDate, formatTime, isPast } from '../utils/date';
-import { useNameList } from '../utils/hooks';
 import { NEARBY_GAME_MARGIN, HOLD_INTERVAL } from '../utils/constants';
+import { PlayerAutocomplete, Player } from '../components/PlayerAutocomplete';
 
 export function ScheduledGamesPage() {
   const [scheduled, setScheduled] = useState<ScheduledGame[]>([]);
   const [venues, setVenues] = useState<string[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingGame, setEditingGame] = useState<ScheduledGame | null>(null);
-  const { names: players, add: addPlayer, remove: removePlayer, clear: clearPlayers } = useNameList();
+  const [players, setPlayers] = useState<Player[]>([]);
 
   // Форма
   const [venue, setVenue] = useState('');
   const [newVenue, setNewVenue] = useState('');
   const [dateTime, setDateTime] = useState('');
-  const [playerInput, setPlayerInput] = useState('');
 
   const loadScheduled = useCallback(async () => {
     const games = await loadScheduledGames();
@@ -34,12 +33,11 @@ export function ScheduledGamesPage() {
     const finalVenue = newVenue.trim() || venue;
     if (!finalVenue || !dateTime || players.length < 2) return;
 
-    // Храним время как "wall clock" без таймзоны — YYYY-MM-DDTHH:mm
     const game: ScheduledGame = {
       id: editingGame?.id || generateId(),
       venue: finalVenue,
-      scheduledAt: dateTime, // без конвертации в UTC
-      players,
+      scheduledAt: dateTime,
+      players: players.map(p => p.name), // конвертируем в string[]
       createdAt: editingGame?.createdAt || new Date().toISOString(),
     };
 
@@ -50,8 +48,8 @@ export function ScheduledGamesPage() {
     setVenue('');
     setNewVenue('');
     setDateTime('');
-    clearPlayers();
-  }, [newVenue, venue, dateTime, players, loadScheduled, clearPlayers, editingGame]);
+    setPlayers([]);
+  }, [newVenue, venue, dateTime, players, loadScheduled, editingGame]);
 
   const handleDeleteFromForm = useCallback(async (id: string) => {
     await deleteScheduledGame(id);
@@ -59,6 +57,19 @@ export function ScheduledGamesPage() {
     setShowForm(false);
     setEditingGame(null);
   }, [loadScheduled]);
+
+  const addPlayer = useCallback((player: Player) => {
+    setPlayers(prev => {
+      if (prev.length >= 10) return prev;
+      const safePrev = prev.filter(p => p && p.name);
+      if (safePrev.some(p => p.name.toLowerCase() === player.name.toLowerCase())) return prev;
+      return [...safePrev, player];
+    });
+  }, []);
+
+  const removePlayer = useCallback((index: number) => {
+    setPlayers(prev => prev.filter((_, i) => i !== index));
+  }, []);
 
   return (
     <div className="page">
@@ -73,8 +84,6 @@ export function ScheduledGamesPage() {
           setNewVenue={setNewVenue}
           dateTime={dateTime}
           setDateTime={setDateTime}
-          playerInput={playerInput}
-          setPlayerInput={setPlayerInput}
           players={players}
           addPlayer={addPlayer}
           removePlayer={removePlayer}
@@ -97,10 +106,8 @@ export function ScheduledGamesPage() {
                   setEditingGame(game);
                   setVenue(game.venue);
                   setNewVenue('');
-                  // Загружаем время как есть — это уже wall clock time
                   setDateTime(game.scheduledAt);
-                  clearPlayers();
-                  game.players.forEach(p => addPlayer(p));
+                  setPlayers(game.players.map(name => ({ name })));
                   setShowForm(true);
                 }}
               />
@@ -133,7 +140,7 @@ export function ScheduledGamesPage() {
 
 function ScheduleForm({
   venues, venue, setVenue, newVenue, setNewVenue,
-  dateTime, setDateTime, playerInput, setPlayerInput,
+  dateTime, setDateTime,
   players, addPlayer, removePlayer, editingGame,
   onSave, onDelete, onCancel,
 }: {
@@ -141,27 +148,17 @@ function ScheduleForm({
   venue: string; setVenue: (v: string) => void;
   newVenue: string; setNewVenue: (v: string) => void;
   dateTime: string; setDateTime: (v: string) => void;
-  playerInput: string; setPlayerInput: (v: string) => void;
-  players: string[];
-  addPlayer: (name: string) => void;
+  players: Player[];
+  addPlayer: (player: Player) => void;
   removePlayer: (idx: number) => void;
   editingGame: ScheduledGame | null;
   onSave: () => void;
   onDelete?: () => void;
   onCancel: () => void;
 }) {
-  const handleAddPlayer = () => {
-    if (players.length >= 10) return;
-    addPlayer(playerInput);
-    setPlayerInput('');
-  };
-
   return (
     <div className="card">
       <h3 className="mb-16">{editingGame ? 'Редактировать' : 'Новая запись'}</h3>
-      <div className="card-header">
-        <label className="form-label" style={{ marginBottom: 0 }}>Игроки <span className="badge">{players.length}/10</span></label>
-      </div>
 
       <VenueSelector
         venues={venues}
@@ -182,28 +179,12 @@ function ScheduleForm({
       </div>
 
       <div className="form-group">
-        <label className="form-label">Игроки</label>
-        <div className="add-player-form">
-          <input
-            className="input"
-            type="text"
-            placeholder="Имя игрока"
-            value={playerInput}
-            onChange={e => setPlayerInput(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleAddPlayer()}
-          />
-          <button className="btn btn-primary btn-small" onClick={handleAddPlayer} disabled={players.length >= 10}>+</button>
-        </div>
-        {players.length > 0 && (
-          <div className="player-tags">
-            {players.map((name, i) => (
-              <span key={i} className="player-tag">
-                {name}
-                <span onClick={() => removePlayer(i)}>×</span>
-              </span>
-            ))}
-          </div>
-        )}
+        <label className="form-label" style={{ marginBottom: 0 }}>Игроки <span className="badge">{players.length}/10</span></label>
+        <PlayerAutocomplete
+          players={players}
+          onAddPlayer={addPlayer}
+          onRemovePlayer={removePlayer}
+        />
         {players.length < 2 && (
           <p className="empty-text mt-8">Минимум 2 игрока</p>
         )}

@@ -4,6 +4,7 @@ import { useGame } from '../context/GameContext';
 import { addCompletedGame } from '../utils/storage';
 import { CompletedGame, GameResult } from '../types';
 import { HeaderBack } from '../components/HeaderBack';
+import { useVerifiedPlayers } from '../utils/hooks';
 
 export function ResultsPage() {
   const navigate = useNavigate();
@@ -12,6 +13,7 @@ export function ResultsPage() {
 
   const results: GameResult[] = location.state?.results || [];
   const [activeTab, setActiveTab] = useState<'results' | 'debts'>('results');
+  const { isVerified } = useVerifiedPlayers();
 
   const transfers = useMemo(() => {
     // Рассчитываем чистый баланс каждого игрока
@@ -115,7 +117,11 @@ export function ResultsPage() {
 
                   return (
                     <tr key={result.playerId}>
-                      <td className="font-semibold">{result.playerName}</td>
+                      <td className="font-semibold">
+                        <span className={isVerified(result.playerName) ? 'verified-player' : ''}>
+                          {result.playerName}
+                        </span>
+                      </td>
                       <td>{result.wasChips} pts</td>
                       <td>{result.becameChips} pts</td>
                       <td className={rubleClass}>
@@ -161,8 +167,12 @@ export function ResultsPage() {
                 <tbody>
                   {transfers.map((t, i) => (
                     <tr key={i}>
-                      <td>{t.from}</td>
-                      <td>{t.to}</td>
+                      <td>
+                        <span className={isVerified(t.from) ? 'verified-player' : ''}>{t.from}</span>
+                      </td>
+                      <td>
+                        <span className={isVerified(t.to) ? 'verified-player' : ''}>{t.to}</span>
+                      </td>
                       <td className="result-negative">{t.amount} ₽</td>
                     </tr>
                   ))}

@@ -48,8 +48,7 @@ export function CreateGamePage() {
     // Загрузка последней игры для быстрого добавления игроков
     loadGameHistory().then(games => {
       if (games.length > 0) {
-        const lastPlayers = games[0].players.map(p => ({ name: p.playerName, tgId: (p as any).tgId }));
-        (window as any).lastGamePlayers = lastPlayers;
+        (window as any).lastGamePlayerNames = games[0].players.map(p => p.playerName);
       }
     });
 

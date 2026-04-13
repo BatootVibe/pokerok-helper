@@ -4,6 +4,7 @@ import { loadGameHistory, deleteCompletedGame } from '../utils/storage';
 import { CompletedGame } from '../types';
 import { HeaderBack } from '../components/HeaderBack';
 import { formatDate, formatTime } from '../utils/date';
+import { useVerifiedPlayers } from '../utils/hooks';
 
 export function HistoryPage() {
   const navigate = useNavigate();
@@ -78,6 +79,7 @@ function GameEntry({ game, isExpanded, onToggle, onDelete }: {
 }) {
   const [activeTab, setActiveTab] = useState<'results' | 'debts'>('results');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const { isVerified } = useVerifiedPlayers();
 
   const transfers = useMemo(() => {
     const balances = game.players
@@ -145,7 +147,7 @@ function GameEntry({ game, isExpanded, onToggle, onDelete }: {
           {activeTab === 'results' && (
             <div className="player-grid">
               {game.players.map(player => (
-                <PlayerResult key={player.playerId} player={player} />
+                <PlayerResult key={player.playerId} player={player} isVerified={isVerified(player.playerName)} />
               ))}
             </div>
           )}
@@ -156,9 +158,9 @@ function GameEntry({ game, isExpanded, onToggle, onDelete }: {
                 transfers.map((t, i) => (
                   <div key={i} className="player-result debt-card">
                     <div className="debt-players">
-                      <span className="debt-from">{t.from}</span>
+                      <span className={isVerified(t.from) ? 'verified-player' : ''}>{t.from}</span>
                       <span className="debt-arrow">→</span>
-                      <span className="debt-to">{t.to}</span>
+                      <span className={isVerified(t.to) ? 'verified-player' : ''}>{t.to}</span>
                     </div>
                     <div className="result-negative debt-amount">{t.amount} ₽</div>
                   </div>
@@ -207,7 +209,7 @@ function GameEntry({ game, isExpanded, onToggle, onDelete }: {
   );
 }
 
-function PlayerResult({ player }: { player: CompletedGame['players'][number] }) {
+function PlayerResult({ player, isVerified }: { player: CompletedGame['players'][number]; isVerified: boolean }) {
   const isZero = player.becameChips === 0;
   const displayRubles = isZero ? -player.spentRubles : player.rubles;
   const isPositive = player.rubles > player.spentRubles;
@@ -216,7 +218,9 @@ function PlayerResult({ player }: { player: CompletedGame['players'][number] }) 
 
   return (
     <div className="player-result">
-      <div className="player-result-name">{player.playerName}</div>
+      <div className={isVerified ? 'player-result-name verified-player' : 'player-result-name'}>
+        {player.playerName}
+      </div>
       <div className={rubleClass}>
         {displayRubles.toFixed(0)} ₽
         {!isZero && <span> ({diff > 0 ? '+' : ''}{diff.toFixed(0)} ₽)</span>}

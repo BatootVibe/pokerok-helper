@@ -49,7 +49,9 @@ export function GameTablePage() {
           <div className="player-grid">
             {currentGame.players.map((player) => (
               <div key={player.id} className="player-card">
-                <span className="player-name">{player.name}</span>
+                <span className={player.tgId ? 'player-name verified-player' : 'player-name'}>
+                  {player.name}
+                </span>
                 <div className="player-stats-row">
                   <div className="stat-badge">
                     <span className="stat-label">BI</span>

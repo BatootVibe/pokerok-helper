@@ -249,7 +249,13 @@ app.get('/api/users/:tgId', (req, res) => {
 app.post('/api/users', (req, res) => {
   const { tgId, name } = req.body;
   if (!tgId || !name) return res.status(400).json({ error: 'tgId and name required' });
-  
+
+  // Проверяем, не занято ли имя другим пользователем
+  const existingUser = db.prepare('SELECT tg_id FROM users WHERE player_name = ? AND tg_id != ?').get(name, tgId);
+  if (existingUser) {
+    return res.status(409).json({ error: 'Это имя уже занято другим игроком' });
+  }
+
   try {
     db.prepare('INSERT OR REPLACE INTO users (tg_id, player_name) VALUES (?, ?)').run(tgId, name);
     res.json({ tgId, name });

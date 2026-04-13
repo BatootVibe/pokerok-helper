@@ -843,6 +843,11 @@ body::before {
   opacity: 1;
 }
 
+.verified-player {
+  color: #4fc3f7;
+  font-weight: 600;
+}
+
 /* === Result Tabs === */
 
 .result-tabs {

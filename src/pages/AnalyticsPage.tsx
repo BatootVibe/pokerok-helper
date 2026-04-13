@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { loadGameHistory } from '../utils/storage';
 import { CompletedGame } from '../types';
 import { HeaderBack } from '../components/HeaderBack';
+import { useVerifiedPlayers } from '../utils/hooks';
 
 interface PlayerStat {
   name: string;
@@ -16,6 +17,7 @@ interface PlayerStat {
 export function AnalyticsPage() {
   const [history, setHistory] = useState<CompletedGame[]>([]);
   const [loading, setLoading] = useState(true);
+  const { isVerified } = useVerifiedPlayers();
 
   useEffect(() => {
     loadGameHistory()
@@ -126,7 +128,9 @@ export function AnalyticsPage() {
                 <tbody>
                   {stats.topPlayers.map(p => (
                     <tr key={p.name}>
-                      <td className="player-cell">{p.name}</td>
+                      <td className="player-cell">
+                        <span className={isVerified(p.name) ? 'verified-player' : ''}>{p.name}</span>
+                      </td>
                       <td>{p.games}</td>
                       <td className="wl-cell">{p.wins}/{p.losses}</td>
                       <td className="result-positive">+{p.bestGame} ₽</td>
