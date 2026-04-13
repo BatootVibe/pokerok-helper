@@ -196,6 +196,10 @@ export function CreateGamePage() {
           onRemovePlayer={removePlayer}
         />
 
+        {players.length < 2 && (
+          <p className="empty-text mt-8">Добавьте минимум 2 игроков</p>
+        )}
+
         {/* Запланированная игра */}
         {showNearbyPrompt && nearbyGame && (
           <div className="nearby-game-prompt">
@@ -205,14 +209,10 @@ export function CreateGamePage() {
             </div>
             <div className="nearby-game-actions">
               <button className="btn btn-primary btn-small" onClick={useNearbyData}>Играть</button>
-              <button className="btn btn-danger btn-small" onClick={skipAndDelete}>Пропустить</button>
+              <button className="btn btn-danger btn-small" onClick={skipAndDelete}>Удалить</button>
               <button className="btn btn-secondary btn-small btn-nearby-hide" onClick={dismissPrompt}>Скрыть</button>
             </div>
           </div>
-        )}
-
-        {players.length < 2 && (
-          <p className="empty-text mt-8">Добавьте минимум 2 игроков</p>
         )}
       </div>
 

@@ -1627,6 +1627,7 @@ body::before {
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.1);
+  text-align: center;
 }
 
 .nearby-game-info {
@@ -1634,6 +1635,7 @@ body::before {
   flex-direction: column;
   gap: 4px;
   margin-bottom: 10px;
+  align-items: center;
 }
 
 .nearby-game-venue {
@@ -1647,9 +1649,20 @@ body::before {
 }
 
 .nearby-game-actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: 8px;
-  flex-wrap: wrap;
+}
+
+.nearby-game-actions .btn {
+  width: 100% !important;
+  min-width: 0;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .btn-nearby-hide {
