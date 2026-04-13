@@ -5,6 +5,7 @@ import {
   LOCAL_PRESETS_KEY,
   LOCAL_VENUES_KEY,
   LOCAL_SCHEDULED_KEY,
+  LOCAL_USER_PROFILE_KEY,
   NEARBY_GAME_MARGIN,
   API_AUTO_RESET_INTERVAL,
 } from './constants';
@@ -244,8 +245,23 @@ export async function findNearbyScheduledGame(): Promise<ScheduledGame | null> {
 // === User Profile & Players ===
 
 export async function getUserProfile(tgId: string): Promise<{ name: string; tgId: string } | null> {
+  // Сначала пробуем из localStorage
+  try {
+    const cached = localStorage.getItem(LOCAL_USER_PROFILE_KEY + tgId);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+  } catch {
+    // ignore
+  }
+
+  // Если нет в localStorage — пробуем API
   try {
     const data = await apiGet<{ name: string; tgId: string } | null>(`/api/users/${tgId}`);
+    // Кэшируем в localStorage
+    if (data) {
+      localStorage.setItem(LOCAL_USER_PROFILE_KEY + tgId, JSON.stringify(data));
+    }
     return data;
   } catch {
     return null;
@@ -253,10 +269,13 @@ export async function getUserProfile(tgId: string): Promise<{ name: string; tgId
 }
 
 export async function saveUserProfile(profile: { name: string; tgId: string }): Promise<void> {
+  // Всегда сохраняем в localStorage
+  localStorage.setItem(LOCAL_USER_PROFILE_KEY + profile.tgId, JSON.stringify(profile));
+
   try {
     await apiPost('/api/users', profile);
   } catch (e) {
-    console.error('Failed to save profile', e);
+    console.error('Failed to save profile to API', e);
   }
 }
 
