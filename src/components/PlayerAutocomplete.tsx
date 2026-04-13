@@ -48,7 +48,7 @@ export function PlayerAutocomplete({ players, onAddPlayer, onRemovePlayer, maxPl
     const existingNames = players.map(p => p.name.toLowerCase());
 
     // 1. Ищем привязанных пользователей
-    const matches = allPlayers.filter(p => 
+    const matches = allPlayers.filter(p =>
       p.name.toLowerCase().includes(query) && !existingNames.includes(p.name.toLowerCase())
     );
 
@@ -56,12 +56,14 @@ export function PlayerAutocomplete({ players, onAddPlayer, onRemovePlayer, maxPl
     const hasExactMatch = allPlayers.some(p => p.name.toLowerCase() === query);
     const guestOption: Player = { name: input.trim() };
 
-    setSuggestions([
-      ...matches.slice(0, 4), // Максимум 4 подсказки
+    const newSuggestions = [
+      ...matches.slice(0, 4),
       ...(input.trim().length > 0 && !hasExactMatch ? [guestOption] : [])
-    ]);
-    setIsOpen(suggestions.length > 0 || input.trim().length > 0);
-  }, [input, allPlayers, players, suggestions.length]);
+    ];
+
+    setSuggestions(newSuggestions);
+    setIsOpen(true);
+  }, [input, allPlayers, players]);
 
   const handleSelect = useCallback((selected: Player) => {
     if (players.length >= maxPlayers) return;
