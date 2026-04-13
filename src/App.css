@@ -746,11 +746,30 @@ body::before {
 
 .settings-telegram {
   border-color: rgba(0, 136, 204, 0.3);
+  cursor: pointer;
 }
 
 .settings-telegram:hover {
   border-color: rgba(0, 136, 204, 0.6);
   box-shadow: 0 4px 20px rgba(0, 136, 204, 0.15);
+}
+
+.profile-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.profile-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.profile-id {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-family: monospace;
 }
 
 .form-actions .btn-danger {

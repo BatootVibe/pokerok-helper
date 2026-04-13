@@ -1,5 +1,5 @@
 import { ChipPreset, CompletedGame, ScheduledGame } from '../types';
-import { apiGetGames, apiSaveGame, apiClearAllGames, apiGetPresets, apiSavePreset, apiDeletePreset, apiDeleteGame, apiGetScheduled, apiSaveScheduled, apiDeleteScheduled, apiHealthCheck } from './api';
+import { apiGetGames, apiSaveGame, apiClearAllGames, apiGetPresets, apiSavePreset, apiDeletePreset, apiDeleteGame, apiGetScheduled, apiSaveScheduled, apiDeleteScheduled, apiHealthCheck, apiGet, apiPost } from './api';
 import {
   LOCAL_HISTORY_KEY,
   LOCAL_PRESETS_KEY,
@@ -239,6 +239,34 @@ export async function findNearbyScheduledGame(): Promise<ScheduledGame | null> {
     }
   }
   return null;
+}
+
+// === User Profile & Players ===
+
+export async function getUserProfile(tgId: string): Promise<{ name: string; tgId: string } | null> {
+  try {
+    const data = await apiGet<{ name: string; tgId: string } | null>(`/api/users/${tgId}`);
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveUserProfile(profile: { name: string; tgId: string }): Promise<void> {
+  try {
+    await apiPost('/api/users', profile);
+  } catch (e) {
+    console.error('Failed to save profile', e);
+  }
+}
+
+export async function getAllPlayers(): Promise<{ name: string; tgId: string | null }[]> {
+  try {
+    const data = await apiGet<{ name: string; tgId: string | null }[]>('/api/players');
+    return data;
+  } catch {
+    return [];
+  }
 }
 
 // === API availability status ===

@@ -1,11 +1,40 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { clearGameHistory } from '../utils/storage';
+import { clearGameHistory, getUserProfile, saveUserProfile } from '../utils/storage';
 import { HeaderBack } from '../components/HeaderBack';
+
+declare global {
+  interface Window {
+    Telegram: any;
+  }
+}
 
 export function SettingsPage() {
   const navigate = useNavigate();
   const [showConfirm, setShowConfirm] = useState(false);
+  const [showBindModal, setShowBindModal] = useState(false);
+  const [bindName, setBindName] = useState('');
+  const [userProfile, setUserProfile] = useState<{ name: string; tgId: string } | null>(null);
+
+  // Получаем Telegram ID
+  const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+  const currentTgId = tgUser ? String(tgUser.id) : null;
+
+  // Загружаем профиль при входе
+  useEffect(() => {
+    if (currentTgId) {
+      getUserProfile(currentTgId).then(profile => setUserProfile(profile));
+    }
+  }, [currentTgId]);
+
+  const handleBind = async () => {
+    if (!bindName.trim() || !currentTgId) return;
+    
+    await saveUserProfile({ name: bindName.trim(), tgId: currentTgId });
+    setUserProfile({ name: bindName.trim(), tgId: currentTgId });
+    setBindName('');
+    setShowBindModal(false);
+  };
 
   const handleClear = useCallback(async () => {
     await clearGameHistory();
@@ -24,12 +53,24 @@ export function SettingsPage() {
         <span className="settings-link-text">Открыть →</span>
       </div>
 
-      <div className="card settings-card settings-telegram">
-        <h3 className="mb-4">🔗 Привязка аккаунта Telegram</h3>
-        <p className="text-muted text-sm mb-8">
-          Привяжите Telegram для синхронизации данных
-        </p>
-        <span className="settings-link-text">Привязать →</span>
+      <div className="card settings-card settings-telegram" onClick={() => !userProfile && currentTgId && setShowBindModal(true)}>
+        {userProfile ? (
+          <>
+            <h3 className="mb-4">👤 Профиль</h3>
+            <div className="profile-info">
+              <span className="profile-name">{userProfile.name}</span>
+              <span className="profile-id">ID: {userProfile.tgId.slice(-6)}</span>
+            </div>
+          </>
+        ) : (
+          <>
+            <h3 className="mb-4">🔗 Привязка аккаунта Telegram</h3>
+            <p className="text-muted text-sm mb-8">
+              {currentTgId ? 'Привяжите аккаунт для синхронизации' : 'Откройте приложение в Telegram'}
+            </p>
+            <span className="settings-link-text">{currentTgId ? 'Привязать →' : 'Недоступно'}</span>
+          </>
+        )}
       </div>
 
       <div className="fixed-actions">
@@ -48,6 +89,32 @@ export function SettingsPage() {
                 Удалить
               </button>
               <button className="btn btn-secondary btn-small" style={{ flex: 1 }} onClick={() => setShowConfirm(false)}>
+                Отмена
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showBindModal && (
+        <div className="modal-overlay">
+          <div className="card card-modal">
+            <h3 className="modal-title">🔗 Привязка аккаунта</h3>
+            <p className="modal-desc">Введите имя, которое будут видеть другие игроки</p>
+            <input
+              className="input"
+              type="text"
+              placeholder="Ваше имя (например, Саня)"
+              value={bindName}
+              onChange={e => setBindName(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleBind()}
+              autoFocus
+            />
+            <div className="modal-actions mt-16">
+              <button className="btn btn-primary btn-small" style={{ flex: 1 }} onClick={handleBind} disabled={!bindName.trim()}>
+                Привязать
+              </button>
+              <button className="btn btn-secondary btn-small" style={{ flex: 1 }} onClick={() => setShowBindModal(false)}>
                 Отмена
               </button>
             </div>

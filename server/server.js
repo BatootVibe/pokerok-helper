@@ -48,6 +48,11 @@ db.exec(`
     players TEXT NOT NULL,
     created_at TEXT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS users (
+    tg_id TEXT PRIMARY KEY,
+    player_name TEXT NOT NULL UNIQUE
+  );
 `);
 
 const app = express();
@@ -234,6 +239,30 @@ app.delete('/api/presets/:id', (req, res) => {
 });
 
 // ===== HEALTH =====
+// === Users API ===
+
+app.get('/api/users/:tgId', (req, res) => {
+  const user = db.prepare('SELECT tg_id as tgId, player_name as name FROM users WHERE tg_id = ?').get(req.params.tgId);
+  res.json(user || null);
+});
+
+app.post('/api/users', (req, res) => {
+  const { tgId, name } = req.body;
+  if (!tgId || !name) return res.status(400).json({ error: 'tgId and name required' });
+  
+  try {
+    db.prepare('INSERT OR REPLACE INTO users (tg_id, player_name) VALUES (?, ?)').run(tgId, name);
+    res.json({ tgId, name });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/players', (req, res) => {
+  const players = db.prepare('SELECT player_name as name, tg_id as tgId FROM users').all();
+  res.json(players);
+});
+
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
