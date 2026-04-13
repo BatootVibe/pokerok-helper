@@ -5,52 +5,23 @@ import { addCompletedGame } from '../utils/storage';
 import { CompletedGame, GameResult } from '../types';
 import { HeaderBack } from '../components/HeaderBack';
 import { useVerifiedPlayers } from '../utils/hooks';
+import { calculateDebts } from '../utils/debt';
 
 export function ResultsPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { currentGame, finishGame } = useGame();
 
-  const results: GameResult[] = location.state?.results || [];
+  const results = location.state?.results as GameResult[] | undefined;
   const [activeTab, setActiveTab] = useState<'results' | 'debts'>('results');
   const { isVerified } = useVerifiedPlayers();
 
   const transfers = useMemo(() => {
-    // Рассчитываем чистый баланс каждого игрока
-    const balances = results
-      .map(p => ({ name: p.playerName, amount: Math.round(p.rubles - p.spentRubles) }))
-      .filter(b => b.amount !== 0);
-
-    // Разделяем на должников (отрицательный баланс) и кредиторов (положительный)
-    // Сортируем по убыванию абсолютной суммы — крупные долги гасим первыми
-    const debtors = balances
-      .filter(b => b.amount < 0)
-      .map(b => ({ name: b.name, amount: -b.amount }))
-      .sort((a, b) => b.amount - a.amount);
-
-    const creditors = balances
-      .filter(b => b.amount > 0)
-      .sort((a, b) => b.amount - a.amount);
-
-    const transfers: { from: string; to: string; amount: number }[] = [];
-    let i = 0, j = 0;
-
-    // Жадный алгоритм: крупнейший должник ↔ крупнейший кредитор
-    while (i < debtors.length && j < creditors.length) {
-      const amount = Math.min(debtors[i].amount, creditors[j].amount);
-      if (amount > 0) {
-        transfers.push({ from: debtors[i].name, to: creditors[j].name, amount });
-      }
-      debtors[i].amount -= amount;
-      creditors[j].amount -= amount;
-      if (debtors[i].amount === 0) i++;
-      if (creditors[j].amount === 0) j++;
-    }
-
-    return transfers;
+    if (!results || results.length === 0) return [];
+    return calculateDebts(results);
   }, [results]);
 
-  if (!currentGame || results.length === 0) {
+  if (!currentGame || !results || results.length === 0) {
     return (
       <div className="page">
         <h1 className="page-title">Нет данных</h1>
@@ -62,6 +33,7 @@ export function ResultsPage() {
   }
 
   const handleFinish = async () => {
+    if (!results) return;
     const completedGame: CompletedGame = {
       id: currentGame.id,
       date: currentGame.date,

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGame } from '../context/GameContext';
 import { HeaderHome } from '../components/HeaderBack';
+import { ConfirmModal } from '../components/ConfirmModal';
 
 export function GameTablePage() {
   const navigate = useNavigate();
@@ -110,22 +111,13 @@ export function GameTablePage() {
 
       {/* Модальное окно подтверждения */}
       {showConfirm && (
-        <div className="modal-overlay">
-          <div className="card card-modal">
-            <h3 className="modal-title">⚠️ Завершить игру?</h3>
-            <p className="modal-desc">
-              Результаты не будут сохранены в историю.
-            </p>
-            <div className="modal-actions">
-              <button className="btn btn-danger btn-small" style={{ flex: 1 }} onClick={handleEmergencyFinish}>
-                Завершить
-              </button>
-              <button className="btn btn-secondary btn-small" style={{ flex: 1 }} onClick={() => setShowConfirm(false)}>
-                Отмена
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmModal
+          title="⚠️ Завершить игру?"
+          description="Результаты не будут сохранены в историю."
+          danger
+          onConfirm={handleEmergencyFinish}
+          onCancel={() => setShowConfirm(false)}
+        />
       )}
     </div>
   );

@@ -159,34 +159,25 @@ export function GameProvider({ children }: { children: ReactNode }) {
     // Сначала flush-им pending save
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current);
-      const game = currentGame;
-      if (game) {
-        const games = loadGames();
-        games[game.id] = game;
-        saveGames(games);
-        saveCurrentGameId(game.id);
-        // Очищаем введённые фишки
-        localStorage.removeItem(CHIP_INPUTS_KEY + game.id);
-      }
       saveTimerRef.current = null;
     }
+    
+    // Удаляем из активных игр ПОСЛЕ сохранения
+    const game = currentGame;
+    if (game) {
+      const games = loadGames();
+      delete games[game.id];
+      saveGames(games);
+      clearCurrentGameId();
+      // Очищаем введённые фишки
+      localStorage.removeItem(CHIP_INPUTS_KEY + game.id);
+    }
+    
     setCurrentGame(null);
     setSelectedPresetId(null);
   }, [currentGame]);
 
-  // Очистка при финише (удаляем из localStorage)
-  useEffect(() => {
-    if (initialized && !currentGame) {
-      const games = loadGames();
-      const prevId = loadCurrentGameId();
-      if (prevId && games[prevId]) {
-        delete games[prevId];
-        saveGames(games);
-        clearCurrentGameId();
-        localStorage.removeItem(CHIP_INPUTS_KEY + prevId);
-      }
-    }
-  }, [currentGame, initialized]);
+  // Убран useEffect удаления — логика перенесена в finishGame
 
   if (!initialized) {
     return (

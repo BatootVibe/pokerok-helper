@@ -2,12 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { clearGameHistory, getUserProfile, saveUserProfile } from '../utils/storage';
 import { HeaderBack } from '../components/HeaderBack';
-
-declare global {
-  interface Window {
-    Telegram: any;
-  }
-}
+import { ConfirmModal } from '../components/ConfirmModal';
 
 export function SettingsPage() {
   const navigate = useNavigate();
@@ -87,20 +82,13 @@ export function SettingsPage() {
       </div>
 
       {showConfirm && (
-        <div className="modal-overlay">
-          <div className="card card-modal">
-            <h3 className="modal-title">🗑️ Очистить историю?</h3>
-            <p className="modal-desc">Все записи будут удалены безвозвратно.</p>
-            <div className="modal-actions">
-              <button className="btn btn-danger btn-small" style={{ flex: 1 }} onClick={handleClear}>
-                Удалить
-              </button>
-              <button className="btn btn-secondary btn-small" style={{ flex: 1 }} onClick={() => setShowConfirm(false)}>
-                Отмена
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmModal
+          title="🗑️ Очистить историю?"
+          description="Все записи будут удалены безвозвратно."
+          danger
+          onConfirm={handleClear}
+          onCancel={() => setShowConfirm(false)}
+        />
       )}
 
       {showBindModal && (

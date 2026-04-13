@@ -50,12 +50,15 @@ export function PlayerAutocomplete({ players, onAddPlayer, onRemovePlayer, maxPl
     setShowSuggestions(false);
   }, [players.length, maxPlayers, onAddPlayer]);
 
-  // Позиционирование выпадающего списка (fixed, чтобы вырваться из stacking context карточки)
+  // Позиционирование выпадающего списка — вынесено через useRef чтобы не было утечки
+  const dropdownPositionRef = useRef<(() => void) | null>(null);
+
   useEffect(() => {
     if (!showSuggestions || !wrapperRef.current) {
       setDropdownStyle({});
       return;
     }
+
     const updatePosition = () => {
       if (!wrapperRef.current) return;
       const rect = wrapperRef.current.getBoundingClientRect();
@@ -67,14 +70,20 @@ export function PlayerAutocomplete({ players, onAddPlayer, onRemovePlayer, maxPl
         zIndex: 9999,
       });
     };
+
+    // Сохраняем ссылку для cleanup
+    dropdownPositionRef.current = updatePosition;
+
     updatePosition();
     window.addEventListener('scroll', updatePosition, true);
     window.addEventListener('resize', updatePosition);
+
     return () => {
       window.removeEventListener('scroll', updatePosition, true);
       window.removeEventListener('resize', updatePosition);
+      dropdownPositionRef.current = null;
     };
-  }, [showSuggestions, suggestions]);
+  }, [showSuggestions]);
 
   // Фильтрация предложений — только имена, НАЧИНАЮЩИЕСЯ с запроса
   useEffect(() => {
@@ -160,22 +169,22 @@ export function PlayerAutocomplete({ players, onAddPlayer, onRemovePlayer, maxPl
           +
         </button>
         {/* Кнопка добавить из последней игры (иконка только) */}
-        {(window as any).lastGamePlayerNames?.length > 0 && (
+        {(window.lastGamePlayers?.length ?? 0) > 0 && (
           <button
             className="btn btn-secondary btn-small autocomplete-history-btn"
             onClick={() => {
-              const lastNames = (window as any).lastGamePlayerNames as string[];
+              const lastPlayers = window.lastGamePlayers!;
               const validPlayers = players.filter(p => p && typeof p.name === 'string');
               const validAll = allPlayers.filter(p => p && typeof p.name === 'string');
               const existingNames = new Set(validPlayers.map(p => p.name.toLowerCase()));
               const availableSlots = maxPlayers - validPlayers.length;
               let added = 0;
-              for (const name of lastNames) {
+              for (const lp of lastPlayers) {
                 if (added >= availableSlots) break;
-                if (existingNames.has(name.toLowerCase())) continue;
+                if (existingNames.has(lp.name.toLowerCase())) continue;
                 // Ищем в allPlayers привязку
-                const linked = validAll.find(p => p.name.toLowerCase() === name.toLowerCase());
-                onAddPlayer(linked || { name });
+                const linked = validAll.find(p => p.name.toLowerCase() === lp.name.toLowerCase());
+                onAddPlayer(linked || lp);
                 added++;
               }
             }}

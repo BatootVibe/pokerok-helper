@@ -275,10 +275,10 @@ export async function saveUserProfile(profile: { name: string; tgId: string }): 
   try {
     await apiPost('/api/users', profile);
     return { success: true };
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error('Failed to save profile to API', e);
-    const errorBody = e?.body as { error?: string } | undefined;
-    return { success: false, error: errorBody?.error || 'Ошибка сохранения' };
+    const errorMessage = e instanceof Error ? e.message : 'Неизвестная ошибка';
+    return { success: false, error: errorMessage };
   }
 }
 

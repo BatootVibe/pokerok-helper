@@ -48,7 +48,7 @@ export function CreateGamePage() {
     // Загрузка последней игры для быстрого добавления игроков
     loadGameHistory().then(games => {
       if (games.length > 0) {
-        (window as any).lastGamePlayerNames = games[0].players.map(p => p.playerName);
+        window.lastGamePlayers = games[0].players.map(p => ({ name: p.playerName, tgId: (p as any).tgId }));
       }
     });
 
@@ -112,12 +112,12 @@ export function CreateGamePage() {
     setShowNearbyPrompt(false);
   }, [nearbyGame]);
 
-  const chipPrice = startingChips && buyInRubles
+  const chipPrice = startingChips && buyInRubles && Number(startingChips) > 0
     ? (Number(buyInRubles) / Number(startingChips)).toFixed(2)
     : null;
 
   const handleCreate = useCallback(() => {
-    if (players.length < 2 || !startingChips || !buyInRubles || !selectedPresetId) return;
+    if (players.length < 2 || Number(startingChips) <= 0 || Number(buyInRubles) < 0 || !selectedPresetId) return;
 
     const venue = newVenueName.trim() || selectedVenue || 'Не указано';
     if (newVenueName.trim() && !venues.includes(newVenueName.trim())) {

@@ -109,16 +109,24 @@ app.get('/api/games', (req, res) => {
     ORDER BY g.finished_at DESC
   `).all();
 
-  const result = games.map(g => ({
-    id: g.id,
-    date: g.date,
-    finishedAt: g.finished_at,
-    venue: g.venue || '',
-    startingChips: g.starting_chips,
-    buyInRubles: g.buy_in_rubles,
-    chipPriceRubles: g.chip_price_rubles,
-    players: JSON.parse(g.players),
-  }));
+  const result = games.map(g => {
+    let players;
+    try {
+      players = JSON.parse(g.players);
+    } catch {
+      players = [];
+    }
+    return {
+      id: g.id,
+      date: g.date,
+      finishedAt: g.finished_at,
+      venue: g.venue || '',
+      startingChips: g.starting_chips,
+      buyInRubles: g.buy_in_rubles,
+      chipPriceRubles: g.chip_price_rubles,
+      players,
+    };
+  });
 
   res.json(result);
 });
@@ -305,6 +313,12 @@ app.delete('/api/scheduled/:id', (req, res) => {
 
 // ===== STATIC =====
 app.use(express.static(path.join(__dirname, '..', 'dist')));
+
+// Глобальный обработчик ошибок
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err.message);
+  res.status(500).json({ error: 'Internal server error' });
+});
 
 // SPA fallback
 app.get('*', (req, res, next) => {

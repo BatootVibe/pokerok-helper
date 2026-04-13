@@ -1,6 +1,7 @@
 import { CompletedGame, ChipPreset, ScheduledGame } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
+const API_TIMEOUT = 10000; // 10 секунд
 
 interface ApiError extends Error {
   status?: number;
@@ -8,23 +9,38 @@ interface ApiError extends Error {
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options,
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT);
 
-  if (!res.ok) {
-    const error = new Error(`API error: ${res.status} ${res.statusText}`) as ApiError;
-    error.status = res.status;
-    try {
-      error.body = await res.json();
-    } catch {
-      // Response body not JSON
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      ...options,
+    });
+    clearTimeout(timeoutId);
+
+    if (!res.ok) {
+      const error = new Error(`API error: ${res.status} ${res.statusText}`) as ApiError;
+      error.status = res.status;
+      try {
+        error.body = await res.json();
+      } catch {
+        // Response body not JSON
+      }
+      throw error;
     }
-    throw error;
-  }
 
-  return res.json();
+    return res.json();
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      const error = new Error('Request timeout') as ApiError;
+      error.status = 504;
+      throw error;
+    }
+    throw err;
+  }
 }
 
 // Generic helpers

@@ -281,17 +281,6 @@ body::before {
   font-size: 14px;
 }
 
-.btn-lg {
-  font-size: 17px;
-  padding: 16px 24px;
-}
-
-.btn-sm {
-  font-size: 13px;
-  padding: 12px 24px;
-  opacity: 0.8;
-}
-
 .btn-icon {
   min-width: 44px;
   min-height: 44px;
@@ -364,33 +353,10 @@ body::before {
 
 /* === Player Row === */
 
-.player-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
-  margin: 0;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  transition: background 0.2s;
-}
-
-.player-row:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
-
 .player-name {
   flex: 1;
   font-size: 14px;
   font-weight: 600;
-}
-
-.player-name-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-top: 8px;
 }
 
 /* === Player Card (GameTable) === */
@@ -1071,10 +1037,6 @@ body::before {
   font-weight: 700;
 }
 
-.result-neutral {
-  color: var(--text-primary);
-}
-
 .diff-text {
   font-size: 11px;
   opacity: 0.7;
@@ -1125,30 +1087,6 @@ body::before {
 
 .history-details .result-tabs .result-tab.active::after {
   display: none;
-}
-
-.debt-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.debt-row {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.04);
-  font-size: 13px;
-  text-align: center;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.debt-row .result-negative {
-  font-weight: 700;
 }
 
 .history-entry {
@@ -1463,53 +1401,6 @@ body::before {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   font-size: 12px;
-}
-
-.best-result {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 12px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.best-name {
-  font-size: 16px;
-  font-weight: 700;
-}
-
-.best-profit {
-  font-size: 18px;
-  font-weight: 800;
-}
-
-.top-player-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.04);
-  margin-top: 4px;
-}
-
-.top-player-rank {
-  font-size: 13px;
-  color: var(--text-secondary);
-  font-weight: 600;
-  min-width: 28px;
-}
-
-.top-player-name {
-  flex: 1;
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.top-player-profit {
-  font-size: 14px;
-  font-weight: 700;
 }
 
 /* === Hold to Delete === */

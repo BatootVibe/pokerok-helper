@@ -3,8 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { loadGameHistory, deleteCompletedGame } from '../utils/storage';
 import { CompletedGame } from '../types';
 import { HeaderBack } from '../components/HeaderBack';
+import { ConfirmModal } from '../components/ConfirmModal';
 import { formatDate, formatTime } from '../utils/date';
 import { useVerifiedPlayers } from '../utils/hooks';
+import { calculateDebts } from '../utils/debt';
 
 export function HistoryPage() {
   const navigate = useNavigate();
@@ -32,6 +34,9 @@ export function HistoryPage() {
     setExpandedGameId(prev => prev === id ? null : id);
   }, []);
 
+  // Загружаем верификацию один раз на уровне страницы
+  const { isVerified } = useVerifiedPlayers();
+
   return (
     <div className="page">
       <HeaderBack title="История" />
@@ -51,6 +56,7 @@ export function HistoryPage() {
             isExpanded={expandedGameId === game.id}
             onToggle={() => toggleGame(game.id)}
             onDelete={() => handleDeleteGame(game.id)}
+            isVerified={isVerified}
           />
         ))
       )}
@@ -71,46 +77,17 @@ export function HistoryPage() {
 
 // === Sub-components ===
 
-function GameEntry({ game, isExpanded, onToggle, onDelete }: {
+function GameEntry({ game, isExpanded, onToggle, onDelete, isVerified }: {
   game: CompletedGame;
   isExpanded: boolean;
   onToggle: () => void;
   onDelete: () => void;
+  isVerified: (name: string) => boolean;
 }) {
   const [activeTab, setActiveTab] = useState<'results' | 'debts'>('results');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const { isVerified } = useVerifiedPlayers();
 
-  const transfers = useMemo(() => {
-    const balances = game.players
-      .map(p => ({ name: p.playerName, amount: Math.round(p.rubles - p.spentRubles) }))
-      .filter(b => b.amount !== 0);
-
-    const debtors = balances
-      .filter(b => b.amount < 0)
-      .map(b => ({ name: b.name, amount: -b.amount }))
-      .sort((a, b) => b.amount - a.amount);
-
-    const creditors = balances
-      .filter(b => b.amount > 0)
-      .sort((a, b) => b.amount - a.amount);
-
-    const transfers: { from: string; to: string; amount: number }[] = [];
-    let i = 0, j = 0;
-
-    while (i < debtors.length && j < creditors.length) {
-      const amount = Math.min(debtors[i].amount, creditors[j].amount);
-      if (amount > 0) {
-        transfers.push({ from: debtors[i].name, to: creditors[j].name, amount });
-      }
-      debtors[i].amount -= amount;
-      creditors[j].amount -= amount;
-      if (debtors[i].amount === 0) i++;
-      if (creditors[j].amount === 0) j++;
-    }
-
-    return transfers;
-  }, [game.players]);
+  const transfers = useMemo(() => calculateDebts(game.players), [game.players]);
 
   return (
     <div className="history-entry">
@@ -178,30 +155,13 @@ function GameEntry({ game, isExpanded, onToggle, onDelete }: {
           </div>
 
           {showDeleteConfirm && (
-            <div className="modal-overlay" onClick={() => setShowDeleteConfirm(false)}>
-              <div className="card card-modal" onClick={(e) => e.stopPropagation()}>
-                <h3 className="modal-title">🗑️ Удалить запись?</h3>
-                <p className="modal-desc">
-                  {formatDate(game.date)} • {game.venue || 'Не указано'}
-                </p>
-                <div className="modal-actions">
-                  <button
-                    className="btn btn-danger btn-small"
-                    style={{ flex: 1 }}
-                    onClick={() => { onDelete(); setShowDeleteConfirm(false); }}
-                  >
-                    Удалить
-                  </button>
-                  <button
-                    className="btn btn-secondary btn-small"
-                    style={{ flex: 1 }}
-                    onClick={() => setShowDeleteConfirm(false)}
-                  >
-                    Отмена
-                  </button>
-                </div>
-              </div>
-            </div>
+            <ConfirmModal
+              title="🗑️ Удалить запись?"
+              description={`${formatDate(game.date)} • ${game.venue || 'Не указано'}`}
+              danger
+              onConfirm={() => { onDelete(); setShowDeleteConfirm(false); }}
+              onCancel={() => setShowDeleteConfirm(false)}
+            />
           )}
         </div>
       )}
