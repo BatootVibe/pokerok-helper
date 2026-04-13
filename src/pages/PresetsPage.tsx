@@ -187,7 +187,7 @@ function PresetList({ presets, onEdit }: {
   if (presets.length === 0) {
     return (
       <div className="empty-state">
-        <div className="empty-state-icon">🪙</div>
+        <div className="empty-state-icon">🎨</div>
         Пока нет сохранённых пресетов
       </div>
     );

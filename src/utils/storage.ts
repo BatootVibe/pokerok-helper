@@ -279,12 +279,42 @@ export async function saveUserProfile(profile: { name: string; tgId: string }): 
   }
 }
 
+/**
+ * Собирает все профили из localStorage.
+ * Работает даже если API недоступен.
+ */
+function _getLocalProfiles(): { name: string; tgId: string }[] {
+  const profiles: { name: string; tgId: string }[] = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && key.startsWith(LOCAL_USER_PROFILE_KEY)) {
+      try {
+        const profile = JSON.parse(localStorage.getItem(key) || '');
+        if (profile && profile.name && profile.tgId) {
+          profiles.push(profile);
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }
+  return profiles;
+}
+
 export async function getAllPlayers(): Promise<{ name: string; tgId: string | null }[]> {
+  // Всегда собираем профили из localStorage
+  const local = _getLocalProfiles();
+
+  // Пробуем получить с API
   try {
-    const data = await apiGet<{ name: string; tgId: string | null }[]>('/api/players');
-    return data;
+    const apiPlayers = await apiGet<{ name: string; tgId: string | null }[]>('/api/players');
+    // Объединяем: API-игроки + локальные, которых нет в API
+    const apiTgIds = new Set(apiPlayers.map(p => p.tgId).filter((id): id is string => Boolean(id)));
+    const extra = local.filter(p => !apiTgIds.has(p.tgId));
+    return [...apiPlayers, ...extra.map(p => ({ name: p.name, tgId: p.tgId }))];
   } catch {
-    return [];
+    // API недоступен — возвращаем только localStorage профили
+    return local.map(p => ({ name: p.name, tgId: p.tgId }));
   }
 }
 

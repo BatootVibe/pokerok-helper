@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { getAllPlayers } from '../utils/storage';
 
 export interface Player {
@@ -17,7 +18,8 @@ export function PlayerAutocomplete({ players, onAddPlayer, onRemovePlayer, maxPl
   const [input, setInput] = useState('');
   const [suggestions, setSuggestions] = useState<Player[]>([]);
   const [allPlayers, setAllPlayers] = useState<Player[]>([]);
-  const [isOpen, setIsOpen] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
   const wrapperRef = useRef<HTMLDivElement>(null);
 
   // Загружаем всех привязанных пользователей при монтировании
@@ -29,40 +31,63 @@ export function PlayerAutocomplete({ players, onAddPlayer, onRemovePlayer, maxPl
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
+        setShowSuggestions(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Фильтрация предложений
+  // Позиционирование выпадающего списка (fixed, чтобы вырваться из stacking context карточки)
+  useEffect(() => {
+    if (!showSuggestions || !wrapperRef.current) {
+      setDropdownStyle({});
+      return;
+    }
+    const updatePosition = () => {
+      if (!wrapperRef.current) return;
+      const rect = wrapperRef.current.getBoundingClientRect();
+      setDropdownStyle({
+        position: 'fixed' as const,
+        top: rect.bottom + 4,
+        left: rect.left,
+        width: rect.width,
+        zIndex: 9999,
+      });
+    };
+    updatePosition();
+    window.addEventListener('scroll', updatePosition, true);
+    window.addEventListener('resize', updatePosition);
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', updatePosition);
+    };
+  }, [showSuggestions, suggestions]);
+
+  // Фильтрация предложений — только имена, НАЧИНАЮЩИЕСЯ с запроса
   useEffect(() => {
     if (!input.trim()) {
       setSuggestions([]);
-      setIsOpen(false);
+      setShowSuggestions(false);
       return;
     }
 
-    const query = input.toLowerCase();
+    const query = input.trim().toLowerCase();
     const existingNames = players.map(p => p.name.toLowerCase());
 
-    // 1. Ищем привязанных пользователей
+    // Только имена, начинающиеся с запроса
     const matches = allPlayers.filter(p =>
-      p.name.toLowerCase().includes(query) && !existingNames.includes(p.name.toLowerCase())
+      p.name.toLowerCase().startsWith(query) && !existingNames.includes(p.name.toLowerCase())
     );
 
-    // 2. Добавляем опцию "Добавить как гостя", если точного совпадения нет
-    const hasExactMatch = allPlayers.some(p => p.name.toLowerCase() === query);
-    const guestOption: Player = { name: input.trim() };
-
-    const newSuggestions = [
-      ...matches.slice(0, 4),
-      ...(input.trim().length > 0 && !hasExactMatch ? [guestOption] : [])
-    ];
-
-    setSuggestions(newSuggestions);
-    setIsOpen(true);
+    // Показываем только если есть совпадения
+    if (matches.length > 0) {
+      setSuggestions(matches.slice(0, 5));
+      setShowSuggestions(true);
+    } else {
+      setSuggestions([]);
+      setShowSuggestions(false);
+    }
   }, [input, allPlayers, players]);
 
   const handleSelect = useCallback((selected: Player) => {
@@ -70,14 +95,21 @@ export function PlayerAutocomplete({ players, onAddPlayer, onRemovePlayer, maxPl
     onAddPlayer(selected);
     setInput('');
     setSuggestions([]);
+    setShowSuggestions(false);
   }, [players.length, maxPlayers, onAddPlayer]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && input.trim()) {
       e.preventDefault();
-      // Если есть точное совпадение в подсказках — выбираем его, иначе создаем гостя
+      const existingNames = players.map(p => p.name.toLowerCase());
+      // Если есть точное совпадение — выбираем его
       const exact = suggestions.find(s => s.name.toLowerCase() === input.trim().toLowerCase());
-      handleSelect(exact || { name: input.trim() });
+      if (exact) {
+        handleSelect(exact);
+      } else if (!existingNames.includes(input.trim().toLowerCase())) {
+        // Иначе добавляем как гостя
+        handleSelect({ name: input.trim() });
+      }
     }
   };
 
@@ -96,7 +128,7 @@ export function PlayerAutocomplete({ players, onAddPlayer, onRemovePlayer, maxPl
         </div>
       )}
 
-      {/* Поле ввода */}
+      {/* Поле ввода + кнопки */}
       <div className="autocomplete-input-row">
         <input
           className="input"
@@ -107,26 +139,56 @@ export function PlayerAutocomplete({ players, onAddPlayer, onRemovePlayer, maxPl
           onKeyDown={handleKeyDown}
           disabled={players.length >= maxPlayers}
         />
-        
-        {/* Выпадающий список */}
-        {isOpen && input.trim() && (
-          <ul className="autocomplete-list">
-            {suggestions.map((s, idx) => {
-              const isLinked = !!s.tgId;
-              return (
-                <li 
-                  key={idx} 
-                  className={`autocomplete-item ${isLinked ? 'linked' : ''}`}
-                  onClick={() => handleSelect(s)}
-                >
-                  <span>{s.name}</span>
-                  {isLinked && <span className="tg-badge">TG</span>}
-                </li>
-              );
-            })}
-          </ul>
+        <button
+          className="btn btn-primary btn-small autocomplete-add-btn"
+          onClick={() => {
+            if (input.trim() && !players.some(p => p.name.toLowerCase() === input.trim().toLowerCase()) && players.length < maxPlayers) {
+              const exact = suggestions.find(s => s.name.toLowerCase() === input.trim().toLowerCase());
+              handleSelect(exact || { name: input.trim() });
+            }
+          }}
+          disabled={players.length >= maxPlayers || !input.trim()}
+        >
+          +
+        </button>
+        {/* Кнопка добавить из последней игры (иконка только) */}
+        {(window as any).lastGamePlayers?.length > 0 && (
+          <button
+            className="btn btn-secondary btn-small autocomplete-history-btn"
+            onClick={() => {
+              const lastPlayers = (window as any).lastGamePlayers as Player[];
+              const existingNames = new Set(players.map(p => p.name.toLowerCase()));
+              const newOnes = lastPlayers.filter(p => !existingNames.has(p.name.toLowerCase()));
+              const availableSlots = maxPlayers - players.length;
+              newOnes.slice(0, availableSlots).forEach(p => onAddPlayer(p));
+            }}
+            disabled={players.length >= maxPlayers}
+            title="Добавить из последней игры"
+          >
+            ↻
+          </button>
         )}
       </div>
+
+      {/* Выпадающий список через портал (на уровне body, вне stacking context карточки) */}
+      {showSuggestions && suggestions.length > 0 && createPortal(
+        <ul className="autocomplete-list autocomplete-list-portal" style={dropdownStyle}>
+          {suggestions.map((s, idx) => {
+            const isLinked = !!s.tgId;
+            return (
+              <li
+                key={idx}
+                className={`autocomplete-item ${isLinked ? 'linked' : ''}`}
+                onClick={() => handleSelect(s)}
+              >
+                <span>{s.name}</span>
+                {isLinked && <span className="tg-badge">TG</span>}
+              </li>
+            );
+          })}
+        </ul>,
+        document.body
+      )}
     </div>
   );
 }

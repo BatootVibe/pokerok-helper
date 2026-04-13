@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useGame } from '../context/GameContext';
 import { loadPresets, loadVenues, saveVenue, deleteVenue, loadGameHistory, findNearbyScheduledGame, deleteScheduledGame } from '../utils/storage';
 import { HeaderBack } from '../components/HeaderBack';
@@ -8,15 +8,17 @@ import { PlayerAutocomplete, Player } from '../components/PlayerAutocomplete';
 
 export function CreateGamePage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { createGame } = useGame();
 
   // Состояние игроков (теперь объекты)
   const [players, setPlayers] = useState<Player[]>([]);
-  
+
   // Настройки игры
   const [startingChips, setStartingChips] = useState('500');
   const [buyInRubles, setBuyInRubles] = useState('250');
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
+  const [showPresetDropdown, setShowPresetDropdown] = useState(false);
   const appliedPresetRef = useRef<string | null>(null);
 
   // Локации
@@ -30,18 +32,24 @@ export function CreateGamePage() {
   const [showNearbyPrompt, setShowNearbyPrompt] = useState(false);
   const [presets, setPresets] = useState<ChipPreset[]>([]);
 
+  // Закрытие dropdown при клике снаружи
+  useEffect(() => {
+    if (!showPresetDropdown) return;
+    const handler = () => setShowPresetDropdown(false);
+    document.addEventListener('click', handler);
+    return () => document.removeEventListener('click', handler);
+  }, [showPresetDropdown]);
+
   // Загрузка данных при старте
   useEffect(() => {
-    loadPresets().then(p => setPresets(p));
+    loadPresets().then(p => setPresets(p.filter(x => Array.isArray(x.chips))));
     setVenues(loadVenues());
-    
+
     // Загрузка последней игры для быстрого добавления игроков
     loadGameHistory().then(games => {
       if (games.length > 0) {
-        // Берем уникальные имена из последней игры
         const lastPlayers = games[0].players.map(p => ({ name: p.playerName, tgId: (p as any).tgId }));
-        // Сохраним их временно, чтобы можно было добавить одной кнопкой
-        (window as any).lastGamePlayers = lastPlayers; 
+        (window as any).lastGamePlayers = lastPlayers;
       }
     });
 
@@ -56,13 +64,13 @@ export function CreateGamePage() {
 
   // Авто-выбор пресета если вернулись со страницы создания пресета
   useEffect(() => {
-    const state = window.history.state || {};
-    const presetId = state?.usr?.selectedPresetId;
+    const presetId = sessionStorage.getItem('pendingPresetId') || location.state?.selectedPresetId;
     if (presetId && appliedPresetRef.current !== presetId) {
       setSelectedPresetId(presetId);
       appliedPresetRef.current = presetId;
+      sessionStorage.removeItem('pendingPresetId');
     }
-  }, []);
+  }, [location.state]);
 
   const addPlayer = useCallback((player: Player) => {
     setPlayers(prev => {
@@ -104,18 +112,6 @@ export function CreateGamePage() {
     }
     setShowNearbyPrompt(false);
   }, [nearbyGame]);
-
-  const handleAddLastPlayers = useCallback(() => {
-    const lastPlayers = (window as any).lastGamePlayers as Player[] || [];
-    if (!lastPlayers.length) return;
-    
-    setPlayers(prev => {
-      const existingNames = new Set(prev.map(p => p.name.toLowerCase()));
-      const newOnes = lastPlayers.filter(p => !existingNames.has(p.name.toLowerCase()));
-      const availableSlots = 10 - prev.length;
-      return [...prev, ...newOnes.slice(0, availableSlots)];
-    });
-  }, []);
 
   const chipPrice = startingChips && buyInRubles
     ? (Number(buyInRubles) / Number(startingChips)).toFixed(2)
@@ -162,32 +158,48 @@ export function CreateGamePage() {
         </div>
       )}
 
-      {/* Выбор пресета */}
-      <div className="card">
-        {presets.length > 0 ? (
-          <>
-            <h3 className="card-title-center">Пресет фишек</h3>
-            <div className="preset-selector preset-selector-centered">
-              {presets.map(preset => (
-                <div
-                  key={preset.id}
-                  className={`preset-chip ${selectedPresetId === preset.id ? 'active' : ''}`}
-                  onClick={() => setSelectedPresetId(preset.id)}
-                >
-                  {preset.name}
-                </div>
-              ))}
-            </div>
-          </>
-        ) : (
-          <>
-            <h3 className="card-title-center">Пресет фишек</h3>
-            <p className="text-muted mb-12 text-center">Нет сохранённых пресетов</p>
-            <button className="btn btn-secondary btn-small btn-center" onClick={() => navigate('/presets', { state: { fromCreate: true } })}>
-              Создать пресет
+      {/* Выбор пресета (выпадающий список + кнопка Настроить) */}
+      <div className="card card-preset-selector">
+        <div className="preset-selector-row">
+          <label className="preset-selector-label">Пресет</label>
+          <div className="preset-dropdown">
+            <button
+              className="preset-dropdown-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowPresetDropdown(!showPresetDropdown);
+              }}
+            >
+              {selectedPresetId
+                ? presets.find(p => p.id === selectedPresetId)?.name || '—'
+                : 'Выбрать'
+              }
+              <span className={`preset-dropdown-arrow ${showPresetDropdown ? 'open' : ''}`}>▾</span>
             </button>
-          </>
-        )}
+            {showPresetDropdown && (
+              <div className="preset-dropdown-menu" onClick={(e) => e.stopPropagation()}>
+                {presets.map(preset => (
+                  <div
+                    key={preset.id}
+                    className={`preset-dropdown-item ${selectedPresetId === preset.id ? 'active' : ''}`}
+                    onClick={() => {
+                      setSelectedPresetId(preset.id);
+                      setShowPresetDropdown(false);
+                    }}
+                  >
+                    {preset.name}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <button
+            className="btn btn-link btn-small"
+            onClick={() => navigate('/presets', { state: { fromCreate: true } })}
+          >
+            Настроить
+          </button>
+        </div>
       </div>
 
       {/* Игроки с умным поиском */}
@@ -196,23 +208,13 @@ export function CreateGamePage() {
           <h3>Игроки</h3>
           <span className="badge">{players.length}/10</span>
         </div>
-        
-        <PlayerAutocomplete 
-          players={players} 
-          onAddPlayer={addPlayer} 
-          onRemovePlayer={removePlayer} 
+
+        <PlayerAutocomplete
+          players={players}
+          onAddPlayer={addPlayer}
+          onRemovePlayer={removePlayer}
         />
 
-        {(window as any).lastGamePlayers?.length > 0 && (
-          <button 
-            className="btn btn-secondary btn-small mt-8 w-full" 
-            onClick={handleAddLastPlayers}
-            disabled={players.length >= 10}
-          >
-            ↻ Добавить игроков из последней игры
-          </button>
-        )}
-        
         {players.length < 2 && (
           <p className="empty-text mt-8">Добавьте минимум 2 игроков</p>
         )}
