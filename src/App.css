@@ -930,6 +930,13 @@ body::before {
   cursor: pointer;
   transition: background 0.15s;
   font-size: 14px;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.autocomplete-item span,
+.autocomplete-item .tg-badge {
+  pointer-events: none;
 }
 
 .autocomplete-item:hover {

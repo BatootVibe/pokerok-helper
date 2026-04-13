@@ -21,22 +21,34 @@ export function PlayerAutocomplete({ players, onAddPlayer, onRemovePlayer, maxPl
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
 
   // Загружаем всех привязанных пользователей при монтировании
   useEffect(() => {
     getAllPlayers().then(list => setAllPlayers(list.map(p => ({ ...p, tgId: p.tgId || undefined }))));
   }, []);
 
-  // Закрытие при клике снаружи
+  // Закрытие при клике снаружи (mousedown)
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      // Не закрываем, если клик был по выпадающему списку
+      if (listRef.current && listRef.current.contains(target)) return;
+      if (wrapperRef.current && !wrapperRef.current.contains(target)) {
         setShowSuggestions(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const handleSelect = useCallback((selected: Player) => {
+    if (players.length >= maxPlayers) return;
+    onAddPlayer(selected);
+    setInput('');
+    setSuggestions([]);
+    setShowSuggestions(false);
+  }, [players.length, maxPlayers, onAddPlayer]);
 
   // Позиционирование выпадающего списка (fixed, чтобы вырваться из stacking context карточки)
   useEffect(() => {
@@ -89,14 +101,6 @@ export function PlayerAutocomplete({ players, onAddPlayer, onRemovePlayer, maxPl
       setShowSuggestions(false);
     }
   }, [input, allPlayers, players]);
-
-  const handleSelect = useCallback((selected: Player) => {
-    if (players.length >= maxPlayers) return;
-    onAddPlayer(selected);
-    setInput('');
-    setSuggestions([]);
-    setShowSuggestions(false);
-  }, [players.length, maxPlayers, onAddPlayer]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && input.trim()) {
@@ -172,7 +176,7 @@ export function PlayerAutocomplete({ players, onAddPlayer, onRemovePlayer, maxPl
 
       {/* Выпадающий список через портал (на уровне body, вне stacking context карточки) */}
       {showSuggestions && suggestions.length > 0 && createPortal(
-        <ul className="autocomplete-list autocomplete-list-portal" style={dropdownStyle}>
+        <ul className="autocomplete-list autocomplete-list-portal" style={dropdownStyle} ref={listRef}>
           {suggestions.map((s, idx) => {
             const isLinked = !!s.tgId;
             return (
