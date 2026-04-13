@@ -26,8 +26,13 @@ export function HistoryPage() {
   }, [loadHistory]);
 
   const handleDeleteGame = useCallback(async (id: string) => {
-    await deleteCompletedGame(id);
-    setHistory(prev => prev.filter(g => g.id !== id));
+    try {
+      await deleteCompletedGame(id);
+      setHistory(prev => prev.filter(g => g.id !== id));
+    } catch (err) {
+      console.error('Failed to delete game:', err);
+      alert('Не удалось удалить игру с сервера.');
+    }
   }, []);
 
   const toggleGame = useCallback((id: string) => {

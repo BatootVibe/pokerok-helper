@@ -1,7 +1,7 @@
 import { CompletedGame, ChipPreset, ScheduledGame } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
-const API_TIMEOUT = 10000; // 10 секунд
+const API_TIMEOUT = 30000; // 30 секунд
 
 interface ApiError extends Error {
   status?: number;

@@ -101,31 +101,41 @@ export function PresetsPage() {
       chips: validChips,
     };
 
-    let updated: ChipPreset[];
-    if (editingPresetId) {
-      updated = presets.map(p => p.id === editingPresetId ? newPreset : p);
-    } else {
-      updated = [...presets, newPreset];
-    }
+    try {
+      let updated: ChipPreset[];
+      if (editingPresetId) {
+        updated = presets.map(p => p.id === editingPresetId ? newPreset : p);
+      } else {
+        updated = [...presets, newPreset];
+      }
 
-    await savePresets(updated);
-    setPresets(updated);
-    setShowForm(false);
-    setEditingPresetId(null);
-    setNewPresetName('');
-    setChipEntries(DEFAULT_CHIP_ENTRIES);
+      await savePresets(updated);
+      setPresets(updated);
+      setShowForm(false);
+      setEditingPresetId(null);
+      setNewPresetName('');
+      setChipEntries(DEFAULT_CHIP_ENTRIES);
 
-    // Если пришли со страницы создания игры и создали пресет — вернуться с ID нового пресета
-    if (fromCreate && !editingPresetId) {
-      sessionStorage.setItem('pendingPresetId', newPreset.id);
-      navigate(-1);
+      // Если пришли со страницы создания игры и создали пресет — вернуться с ID нового пресета
+      if (fromCreate && !editingPresetId) {
+        sessionStorage.setItem('pendingPresetId', newPreset.id);
+        navigate(-1);
+      }
+    } catch (err) {
+      console.error('Failed to save preset:', err);
+      alert('Не удалось сохранить пресет на сервер. Попробуйте ещё раз.');
     }
   }, [newPresetName, chipEntries, presets, editingPresetId, fromCreate, navigate]);
 
   const handleDeletePreset = useCallback(async (id: string) => {
-    await deletePreset(id);
-    const updated = presets.filter(p => p.id !== id);
-    setPresets(updated);
+    try {
+      await deletePreset(id);
+      const updated = presets.filter(p => p.id !== id);
+      setPresets(updated);
+    } catch (err) {
+      console.error('Failed to delete preset:', err);
+      alert('Не удалось удалить пресет с сервера.');
+    }
   }, [presets]);
 
   return (

@@ -39,8 +39,13 @@ export function SettingsPage() {
   };
 
   const handleClear = useCallback(async () => {
-    await clearGameHistory();
-    setShowConfirm(false);
+    try {
+      await clearGameHistory();
+      setShowConfirm(false);
+    } catch (err) {
+      console.error('Failed to clear history:', err);
+      alert('Не удалось очистить историю на сервере.');
+    }
   }, []);
 
   return (

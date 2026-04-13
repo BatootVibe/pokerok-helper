@@ -41,21 +41,31 @@ export function ScheduledGamesPage() {
       createdAt: editingGame?.createdAt || new Date().toISOString(),
     };
 
-    await saveScheduledGame(game);
-    await loadScheduled();
-    setShowForm(false);
-    setEditingGame(null);
-    setVenue('');
-    setNewVenue('');
-    setDateTime('');
-    setPlayers([]);
+    try {
+      await saveScheduledGame(game);
+      await loadScheduled();
+      setShowForm(false);
+      setEditingGame(null);
+      setVenue('');
+      setNewVenue('');
+      setDateTime('');
+      setPlayers([]);
+    } catch (err) {
+      console.error('Failed to save scheduled game:', err);
+      alert('Не удалось сохранить игру на сервер. Попробуйте ещё раз.');
+    }
   }, [newVenue, venue, dateTime, players, loadScheduled, editingGame]);
 
   const handleDeleteFromForm = useCallback(async (id: string) => {
-    await deleteScheduledGame(id);
-    await loadScheduled();
-    setShowForm(false);
-    setEditingGame(null);
+    try {
+      await deleteScheduledGame(id);
+      await loadScheduled();
+      setShowForm(false);
+      setEditingGame(null);
+    } catch (err) {
+      console.error('Failed to delete scheduled game:', err);
+      alert('Не удалось удалить игру с сервера.');
+    }
   }, [loadScheduled]);
 
   const addPlayer = useCallback((player: Player) => {
