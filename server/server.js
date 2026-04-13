@@ -53,6 +53,11 @@ db.exec(`
     tg_id TEXT PRIMARY KEY,
     player_name TEXT NOT NULL UNIQUE
   );
+
+  CREATE TABLE IF NOT EXISTS venues (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE
+  );
 `);
 
 const app = express();
@@ -275,6 +280,34 @@ app.post('/api/users', (req, res) => {
 app.get('/api/players', (req, res) => {
   const players = db.prepare('SELECT player_name as name, tg_id as tgId FROM users').all();
   res.json(players);
+});
+
+// ===== VENUES =====
+
+app.get('/api/venues', (req, res) => {
+  const venues = db.prepare('SELECT name FROM venues ORDER BY id DESC').all();
+  res.json(venues.map(v => v.name));
+});
+
+app.post('/api/venues', (req, res) => {
+  const { name } = req.body;
+  if (!name || typeof name !== 'string') {
+    return res.status(400).json({ error: 'Invalid venue name' });
+  }
+  try {
+    db.prepare('INSERT INTO venues (name) VALUES (?)').run(name.trim());
+    res.json({ success: true });
+  } catch (err) {
+    if (err.message.includes('UNIQUE')) {
+      return res.status(409).json({ error: 'Локация уже существует' });
+    }
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/venues/:name', (req, res) => {
+  db.prepare('DELETE FROM venues WHERE name = ?').run(decodeURIComponent(req.params.name));
+  res.json({ success: true });
 });
 
 app.get('/api/health', (req, res) => {

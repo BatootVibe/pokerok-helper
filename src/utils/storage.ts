@@ -1,5 +1,5 @@
 import { ChipPreset, CompletedGame, ScheduledGame } from '../types';
-import { apiGetGames, apiSaveGame, apiClearAllGames, apiGetPresets, apiSavePreset, apiDeletePreset, apiDeleteGame, apiGetScheduled, apiSaveScheduled, apiDeleteScheduled, apiHealthCheck, apiGet, apiPost } from './api';
+import { apiGetGames, apiSaveGame, apiClearAllGames, apiGetPresets, apiSavePreset, apiDeletePreset, apiDeleteGame, apiGetScheduled, apiSaveScheduled, apiDeleteScheduled, apiHealthCheck, apiGet, apiPost, apiGetVenues, apiSaveVenue, apiDeleteVenue } from './api';
 import {
   LOCAL_HISTORY_KEY,
   LOCAL_PRESETS_KEY,
@@ -70,7 +70,7 @@ export async function loadGameHistory(): Promise<CompletedGame[]> {
 export async function addCompletedGame(game: CompletedGame): Promise<void> {
   try {
     await apiSaveGame(game);
-    // Обновляем localStorage для консистентности
+    // Обновляем кэш только после успешного сохранения в API
     let history: CompletedGame[] = [];
     try {
       history = JSON.parse(localStorage.getItem(LOCAL_HISTORY_KEY) || '[]');
@@ -82,43 +82,39 @@ export async function addCompletedGame(game: CompletedGame): Promise<void> {
   } catch {
     apiAvailable = false;
     apiLastFailTime = Date.now();
-    let history: CompletedGame[] = [];
-    try {
-      history = JSON.parse(localStorage.getItem(LOCAL_HISTORY_KEY) || '[]');
-    } catch {
-      // corrupted
-    }
-    history.unshift(game);
-    localStorage.setItem(LOCAL_HISTORY_KEY, JSON.stringify(history));
+    // API недоступен — не сохраняем в localStorage чтобы не было рассинхрона
+    throw new Error('Не удалось сохранить игру на сервер');
   }
 }
 
 export async function deleteCompletedGame(id: string): Promise<void> {
   try {
     await apiDeleteGame(id);
+    // Обновляем кэш после успешного удаления
+    let history: CompletedGame[] = [];
+    try {
+      history = JSON.parse(localStorage.getItem(LOCAL_HISTORY_KEY) || '[]');
+    } catch {
+      // corrupted
+    }
+    const updated = history.filter((g: CompletedGame) => g.id !== id);
+    localStorage.setItem(LOCAL_HISTORY_KEY, JSON.stringify(updated));
   } catch {
     apiAvailable = false;
     apiLastFailTime = Date.now();
+    throw new Error('Не удалось удалить игру с сервера');
   }
-  // Удаляем из localStorage в любом случае
-  let history: CompletedGame[] = [];
-  try {
-    history = JSON.parse(localStorage.getItem(LOCAL_HISTORY_KEY) || '[]');
-  } catch {
-    // corrupted
-  }
-  const updated = history.filter((g: CompletedGame) => g.id !== id);
-  localStorage.setItem(LOCAL_HISTORY_KEY, JSON.stringify(updated));
 }
 
 export async function clearGameHistory(): Promise<void> {
   try {
     await apiClearAllGames();
+    localStorage.removeItem(LOCAL_HISTORY_KEY);
   } catch {
     apiAvailable = false;
     apiLastFailTime = Date.now();
+    throw new Error('Не удалось очистить историю на сервере');
   }
-  localStorage.removeItem(LOCAL_HISTORY_KEY);
 }
 
 // === Presets ===
@@ -132,54 +128,47 @@ export async function loadPresets(): Promise<ChipPreset[]> {
 }
 
 export async function savePresets(presets: ChipPreset[]): Promise<void> {
-  const savedIds = new Set<string>();
   for (const preset of presets) {
-    try {
-      await apiSavePreset(preset);
-      savedIds.add(preset.id);
-    } catch {
-      apiAvailable = false;
-      apiLastFailTime = Date.now();
-    }
+    await apiSavePreset(preset);
   }
-  // Сохраняем в localStorage всегда
+  // Сохраняем в кэш только после успешного сохранения всех пресетов в API
   localStorage.setItem(LOCAL_PRESETS_KEY, JSON.stringify(presets));
 }
 
 export async function deletePreset(id: string): Promise<void> {
-  try {
-    await apiDeletePreset(id);
-  } catch {
-    apiAvailable = false;
-    apiLastFailTime = Date.now();
-  }
+  await apiDeletePreset(id);
+  // Обновляем кэш после успешного удаления
   const presets = JSON.parse(localStorage.getItem(LOCAL_PRESETS_KEY) || '[]');
   const updated = presets.filter((p: ChipPreset) => p.id !== id);
   localStorage.setItem(LOCAL_PRESETS_KEY, JSON.stringify(updated));
 }
 
-// === Venues (localStorage only) ===
+// === Venues ===
 
-export function loadVenues(): string[] {
-  const data = localStorage.getItem(LOCAL_VENUES_KEY);
-  try {
-    return data ? JSON.parse(data) : [];
-  } catch {
-    return [];
-  }
+export async function loadVenues(): Promise<string[]> {
+  return withFallback(
+    () => apiGetVenues(),
+    LOCAL_VENUES_KEY,
+    [],
+  );
 }
 
-export function saveVenue(name: string): void {
-  const venues = loadVenues();
+export async function saveVenue(name: string): Promise<void> {
+  await apiSaveVenue(name);
+  // Обновляем кэш после успешного сохранения
+  const venues = await loadVenues();
   if (!venues.includes(name)) {
     venues.unshift(name);
     localStorage.setItem(LOCAL_VENUES_KEY, JSON.stringify(venues));
   }
 }
 
-export function deleteVenue(name: string): void {
-  const venues = loadVenues().filter(v => v !== name);
-  localStorage.setItem(LOCAL_VENUES_KEY, JSON.stringify(venues));
+export async function deleteVenue(name: string): Promise<void> {
+  await apiDeleteVenue(name);
+  // Обновляем кэш после успешного удаления
+  const venues = await loadVenues();
+  const updated = venues.filter(v => v !== name);
+  localStorage.setItem(LOCAL_VENUES_KEY, JSON.stringify(updated));
 }
 
 // === Scheduled Games ===
@@ -193,13 +182,8 @@ export async function loadScheduledGames(): Promise<ScheduledGame[]> {
 }
 
 export async function saveScheduledGame(game: ScheduledGame): Promise<void> {
-  try {
-    await apiSaveScheduled(game);
-  } catch {
-    apiAvailable = false;
-    apiLastFailTime = Date.now();
-  }
-  // Обновляем localStorage: заменяем существующую или добавляем новую
+  await apiSaveScheduled(game);
+  // Обновляем кэш только после успешного сохранения в API
   let games: ScheduledGame[] = [];
   try {
     games = JSON.parse(localStorage.getItem(LOCAL_SCHEDULED_KEY) || '[]');
@@ -216,12 +200,8 @@ export async function saveScheduledGame(game: ScheduledGame): Promise<void> {
 }
 
 export async function deleteScheduledGame(id: string): Promise<void> {
-  try {
-    await apiDeleteScheduled(id);
-  } catch {
-    apiAvailable = false;
-    apiLastFailTime = Date.now();
-  }
+  await apiDeleteScheduled(id);
+  // Обновляем кэш после успешного удаления
   const games = await loadScheduledGames();
   const filtered = games.filter(g => g.id !== id);
   localStorage.setItem(LOCAL_SCHEDULED_KEY, JSON.stringify(filtered));

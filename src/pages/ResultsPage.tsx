@@ -34,20 +34,25 @@ export function ResultsPage() {
 
   const handleFinish = async () => {
     if (!results) return;
-    const completedGame: CompletedGame = {
-      id: currentGame.id,
-      date: currentGame.date,
-      finishedAt: new Date().toISOString(),
-      venue: currentGame.venue || 'Не указано',
-      players: results,
-      startingChips: currentGame.startingChips,
-      buyInRubles: currentGame.buyInRubles,
-      chipPriceRubles: currentGame.chipPriceRubles,
-    };
+    try {
+      const completedGame: CompletedGame = {
+        id: currentGame.id,
+        date: currentGame.date,
+        finishedAt: new Date().toISOString(),
+        venue: currentGame.venue || 'Не указано',
+        players: results,
+        startingChips: currentGame.startingChips,
+        buyInRubles: currentGame.buyInRubles,
+        chipPriceRubles: currentGame.chipPriceRubles,
+      };
 
-    await addCompletedGame(completedGame);
-    finishGame();
-    navigate('/');
+      await addCompletedGame(completedGame);
+      finishGame();
+      navigate('/');
+    } catch (err) {
+      console.error('Failed to save game:', err);
+      alert('Не удалось сохранить игру на сервер. Попробуйте ещё раз.');
+    }
   };
 
   return (

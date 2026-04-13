@@ -107,6 +107,22 @@ export function apiDeleteScheduled(id: string): Promise<{ success: boolean }> {
   return request(`/api/scheduled/${id}`, { method: 'DELETE' });
 }
 
+// Venues
+export function apiGetVenues(): Promise<string[]> {
+  return request<string[]>('/api/venues');
+}
+
+export function apiSaveVenue(name: string): Promise<{ success: boolean }> {
+  return request('/api/venues', {
+    method: 'POST',
+    body: JSON.stringify({ name }),
+  });
+}
+
+export function apiDeleteVenue(name: string): Promise<{ success: boolean }> {
+  return request(`/api/venues/${encodeURIComponent(name)}`, { method: 'DELETE' });
+}
+
 // Health check
 export function apiHealthCheck(): Promise<{ status: string }> {
   return request('/api/health');

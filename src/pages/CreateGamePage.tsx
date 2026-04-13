@@ -43,7 +43,7 @@ export function CreateGamePage() {
   // Загрузка данных при старте
   useEffect(() => {
     loadPresets().then(p => setPresets(p.filter(x => Array.isArray(x.chips))));
-    setVenues(loadVenues());
+    loadVenues().then(v => setVenues(v));
 
     // Загрузка последней игры для быстрого добавления игроков
     loadGameHistory().then(games => {
@@ -88,9 +88,9 @@ export function CreateGamePage() {
     if (nearbyGame) {
       await deleteScheduledGame(nearbyGame.id);
       if (nearbyGame.venue) {
-        const existingVenues = loadVenues();
+        const existingVenues = await loadVenues();
         if (!existingVenues.includes(nearbyGame.venue)) {
-          saveVenue(nearbyGame.venue);
+          await saveVenue(nearbyGame.venue);
           setVenues(prev => [nearbyGame!.venue, ...prev]);
         }
         setSelectedVenue(nearbyGame.venue);
@@ -116,20 +116,20 @@ export function CreateGamePage() {
     ? (Number(buyInRubles) / Number(startingChips)).toFixed(2)
     : null;
 
-  const handleCreate = useCallback(() => {
+  const handleCreate = useCallback(async () => {
     if (players.length < 2 || Number(startingChips) <= 0 || Number(buyInRubles) < 0 || !selectedPresetId) return;
 
     const venue = newVenueName.trim() || selectedVenue || 'Не указано';
     if (newVenueName.trim() && !venues.includes(newVenueName.trim())) {
-      saveVenue(newVenueName.trim());
+      await saveVenue(newVenueName.trim());
     }
 
     // Создаем игру с объектами игроков
     createGame(
-      players, 
-      Number(startingChips), 
-      Number(buyInRubles), 
-      selectedPresetId, 
+      players,
+      Number(startingChips),
+      Number(buyInRubles),
+      selectedPresetId,
       venue
     );
     navigate('/table');
@@ -314,9 +314,9 @@ function VenueSection({ venues, selectedVenue, setSelectedVenue, newVenueName, s
               {v}
               <span
                 className="preset-delete-x"
-                onClick={e => {
+                onClick={async e => {
                   e.stopPropagation();
-                  deleteVenue(v);
+                  await deleteVenue(v);
                   setVenues(prev => prev.filter(x => x !== v));
                   if (selectedVenue === v) setSelectedVenue('');
                 }}

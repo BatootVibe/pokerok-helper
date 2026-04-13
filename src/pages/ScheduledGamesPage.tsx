@@ -26,7 +26,7 @@ export function ScheduledGamesPage() {
 
   useEffect(() => {
     loadScheduled();
-    setVenues(loadVenues());
+    loadVenues().then(v => setVenues(v));
   }, [loadScheduled]);
 
   const handleSave = useCallback(async () => {
