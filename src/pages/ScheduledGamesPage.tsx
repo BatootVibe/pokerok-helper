@@ -167,11 +167,6 @@ export function ScheduledGamesPage() {
 
       {loading ? (
         <div className="empty-state">Загрузка...</div>
-      ) : !isBound ? (
-        <div className="empty-state">
-          <div className="empty-state-icon">🔒</div>
-          Привяжите аккаунт в настройках, чтобы управлять расписанием
-        </div>
       ) : showForm ? (
         <ScheduleForm
           key={formKey}
@@ -187,15 +182,18 @@ export function ScheduledGamesPage() {
           onRemovePlayer={handleRemovePlayer}
           editingGame={editingGame}
           onSave={handleSave}
-          onDelete={editingGame ? () => handleDelete(editingGame.id) : undefined}
+          onDelete={editingGame && isBound ? () => handleDelete(editingGame.id) : undefined}
           onCancel={closeForm}
+          isBound={isBound}
         />
       ) : sorted.length > 0 ? (
         <div className="mt-16">
           {sorted.map(game => (
-            <ScheduledEntry key={game.id} game={game} onEdit={() => openEditForm(game)} />
+            <ScheduledEntry key={game.id} game={game} onEdit={() => isBound && openEditForm(game)} canEdit={isBound} />
           ))}
-          <p className="page-hint text-center">Удерживайте карточку 2 сек для редактирования</p>
+          {isBound && (
+            <p className="page-hint text-center">Удерживайте карточку 2 сек для редактирования</p>
+          )}
         </div>
       ) : (
         <div className="empty-state">
@@ -221,7 +219,7 @@ function ScheduleForm({
   venues, venue, setVenue, newVenue, setNewVenue,
   dateTime, setDateTime,
   players, onAddPlayer, onRemovePlayer, editingGame,
-  onSave, onDelete, onCancel,
+  onSave, onDelete, onCancel, isBound,
 }: {
   venues: string[];
   venue: string; setVenue: (v: string) => void;
@@ -234,6 +232,7 @@ function ScheduleForm({
   onSave: () => void;
   onDelete?: () => void;
   onCancel: () => void;
+  isBound: boolean;
 }) {
   const [saving, setSaving] = useState(false);
 
@@ -279,14 +278,16 @@ function ScheduleForm({
       </div>
 
       <div className="form-actions">
-        <button
-          className="btn btn-primary btn-small"
-          style={{ flex: 1 }}
-          onClick={handleSave}
-          disabled={players.length < 2 || saving}
-        >
-          {saving ? '⏳' : '💾'} Сохранить
-        </button>
+        {isBound && (
+          <button
+            className="btn btn-primary btn-small"
+            style={{ flex: 1 }}
+            onClick={handleSave}
+            disabled={players.length < 2 || saving}
+          >
+            {saving ? '⏳' : '💾'} Сохранить
+          </button>
+        )}
         <button className="btn btn-secondary btn-small" style={{ flex: 1 }} onClick={onCancel}>
           Отмена
         </button>
@@ -360,7 +361,7 @@ function VenueSelector({
 
 // === Scheduled Entry Card ===
 
-function ScheduledEntry({ game, onEdit }: { game: ScheduledGame; onEdit: () => void }) {
+function ScheduledEntry({ game, onEdit, canEdit }: { game: ScheduledGame; onEdit: () => void; canEdit: boolean }) {
   const holdTimerRef = useRef<number | null>(null);
   const [holdProgress, setHoldProgress] = useState(0);
 
@@ -373,6 +374,7 @@ function ScheduledEntry({ game, onEdit }: { game: ScheduledGame; onEdit: () => v
   const past = safeScheduledAt ? isPast(safeScheduledAt, NEARBY_GAME_MARGIN) : false;
 
   const startHold = () => {
+    if (!canEdit) return;
     const start = Date.now();
     const interval = setInterval(() => {
       const elapsed = Date.now() - start;

@@ -155,19 +155,9 @@ export function PresetsPage() {
 
       {!showForm && (
         <>
-          {!isBound && (
-            <div className="empty-state">
-              <div className="empty-state-icon">🔒</div>
-              Привяжите аккаунт в настройках, чтобы управлять пресетами
-            </div>
-          )}
-          {isBound && (
-            <>
-              <PresetList presets={presets} onEdit={openEdit} />
-              {presets.length > 0 && (
-                <p className="page-hint text-center">Удерживайте карточку 2 сек для редактирования</p>
-              )}
-            </>
+          <PresetList presets={presets} onEdit={isBound ? openEdit : () => {}} />
+          {isBound && presets.length > 0 && (
+            <p className="page-hint text-center">Удерживайте карточку 2 сек для редактирования</p>
           )}
         </>
       )}
