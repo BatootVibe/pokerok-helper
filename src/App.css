@@ -356,6 +356,12 @@ body::before {
   font-size: 36px;
 }
 
+.home-card-icon-img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+}
+
 .home-card-text {
   text-align: center;
 }

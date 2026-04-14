@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { useGame } from '../context/GameContext';
 
 interface HomeCard {
-  icon: string;
+  iconImg: string;
   title: string;
   sub: string;
   path: string;
@@ -15,16 +15,16 @@ export function HomePage() {
 
   const cards: HomeCard[] = currentGame
     ? [
-        { icon: '🃏', title: 'Продолжить', sub: `${currentGame.players.length} игроков`, path: '/table', highlight: true },
-        { icon: '📅', title: 'Расписание', sub: 'Запланированные игры', path: '/scheduled' },
-        { icon: '🏆', title: 'История', sub: '', path: '/history' },
-        { icon: '⚙️', title: 'Настройки', sub: '', path: '/settings' },
+        { iconImg: 'continue.png', title: 'Продолжить', sub: `${currentGame.players.length} игроков`, path: '/table', highlight: true },
+        { iconImg: 'schedule.png', title: 'Расписание', sub: 'Запланированные игры', path: '/scheduled' },
+        { iconImg: 'history.png', title: 'История', sub: '', path: '/history' },
+        { iconImg: 'settings.png', title: 'Настройки', sub: '', path: '/settings' },
       ]
     : [
-        { icon: '🎰', title: 'Новая игра', sub: 'Создать стол и начать', path: '/create', highlight: true },
-        { icon: '📅', title: 'Расписание', sub: 'Запланированные игры', path: '/scheduled' },
-        { icon: '🏆', title: 'История', sub: '', path: '/history' },
-        { icon: '⚙️', title: 'Настройки', sub: '', path: '/settings' },
+        { iconImg: 'new-game.png', title: 'Новая игра', sub: 'Создать стол и начать', path: '/create', highlight: true },
+        { iconImg: 'schedule.png', title: 'Расписание', sub: 'Запланированные игры', path: '/scheduled' },
+        { iconImg: 'history.png', title: 'История', sub: '', path: '/history' },
+        { iconImg: 'settings.png', title: 'Настройки', sub: '', path: '/settings' },
       ];
 
   return (
@@ -42,7 +42,7 @@ export function HomePage() {
             className={`home-card ${card.highlight ? 'highlighted' : ''}`}
             onClick={() => navigate(card.path)}
           >
-            <span className="home-card-icon">{card.icon}</span>
+            <img src={`/${card.iconImg}`} alt={card.title} className="home-card-icon-img" />
             <div className="home-card-text">
               <div className="home-card-title">{card.title}</div>
               {card.sub && <div className="home-card-sub">{card.sub}</div>}
