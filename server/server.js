@@ -277,6 +277,12 @@ app.post('/api/users', (req, res) => {
   }
 });
 
+app.delete('/api/users/:tgId', (req, res) => {
+  const { tgId } = req.params;
+  db.prepare('DELETE FROM users WHERE tg_id = ?').run(tgId);
+  res.json({ success: true });
+});
+
 app.get('/api/players', (req, res) => {
   const players = db.prepare('SELECT player_name as name, tg_id as tgId FROM users').all();
   res.json(players);

@@ -127,3 +127,8 @@ export function apiDeleteVenue(name: string): Promise<{ success: boolean }> {
 export function apiHealthCheck(): Promise<{ status: string }> {
   return request('/api/health');
 }
+
+// Users
+export function apiDeleteUser(tgId: string): Promise<{ success: boolean }> {
+  return request(`/api/users/${tgId}`, { method: 'DELETE' });
+}

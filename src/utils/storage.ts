@@ -1,5 +1,5 @@
 import { ChipPreset, CompletedGame, ScheduledGame } from '../types';
-import { apiGetGames, apiSaveGame, apiClearAllGames, apiGetPresets, apiSavePreset, apiDeletePreset, apiDeleteGame, apiGetScheduled, apiSaveScheduled, apiDeleteScheduled, apiHealthCheck, apiGet, apiPost, apiGetVenues, apiSaveVenue, apiDeleteVenue } from './api';
+import { apiGetGames, apiSaveGame, apiClearAllGames, apiGetPresets, apiSavePreset, apiDeletePreset, apiDeleteGame, apiGetScheduled, apiSaveScheduled, apiDeleteScheduled, apiHealthCheck, apiGet, apiPost, apiGetVenues, apiSaveVenue, apiDeleteVenue, apiDeleteUser } from './api';
 import {
   LOCAL_HISTORY_KEY,
   LOCAL_PRESETS_KEY,
@@ -282,6 +282,19 @@ export async function saveUserProfile(profile: { name: string; tgId: string }): 
     const errorMessage = e instanceof Error ? e.message : 'Неизвестная ошибка';
     return { success: false, error: errorMessage };
   }
+}
+
+export async function deleteUserProfile(tgId: string): Promise<void> {
+  // Удаляем из API
+  try {
+    await apiDeleteUser(tgId);
+  } catch {
+    apiAvailable = false;
+    apiLastFailTime = Date.now();
+    throw new Error('Не удалось отвязать аккаунт на сервере');
+  }
+  // Удаляем из localStorage
+  localStorage.removeItem(LOCAL_USER_PROFILE_KEY + tgId);
 }
 
 /**

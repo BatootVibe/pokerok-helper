@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { clearGameHistory, getUserProfile, saveUserProfile } from '../utils/storage';
+import { clearGameHistory, getUserProfile, saveUserProfile, deleteUserProfile } from '../utils/storage';
 import { HeaderBack } from '../components/HeaderBack';
 import { ConfirmModal } from '../components/ConfirmModal';
 
@@ -8,6 +8,7 @@ export function SettingsPage() {
   const navigate = useNavigate();
   const [showConfirm, setShowConfirm] = useState(false);
   const [showBindModal, setShowBindModal] = useState(false);
+  const [showUnbindConfirm, setShowUnbindConfirm] = useState(false);
   const [bindName, setBindName] = useState('');
   const [bindError, setBindError] = useState('');
   const [userProfile, setUserProfile] = useState<{ name: string; tgId: string } | null>(null);
@@ -35,6 +36,18 @@ export function SettingsPage() {
       setShowBindModal(false);
     } else {
       setBindError(result.error || 'Ошибка при привязке');
+    }
+  };
+
+  const handleUnbind = async () => {
+    if (!currentTgId) return;
+    try {
+      await deleteUserProfile(currentTgId);
+      setUserProfile(null);
+      setShowUnbindConfirm(false);
+    } catch (err) {
+      console.error('Failed to unbind profile:', err);
+      alert('Не удалось отвязать аккаунт. Попробуйте ещё раз.');
     }
   };
 
@@ -68,6 +81,17 @@ export function SettingsPage() {
               <span className="profile-name">{userProfile.name}</span>
               <span className="profile-id">ID: {userProfile.tgId.slice(-6)}</span>
             </div>
+            <div className="mt-8">
+              <button
+                className="btn btn-danger btn-small"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowUnbindConfirm(true);
+                }}
+              >
+                Отвязать аккаунт
+              </button>
+            </div>
           </>
         ) : (
           <>
@@ -93,6 +117,16 @@ export function SettingsPage() {
           danger
           onConfirm={handleClear}
           onCancel={() => setShowConfirm(false)}
+        />
+      )}
+
+      {showUnbindConfirm && (
+        <ConfirmModal
+          title="🔓 Отвязать аккаунт?"
+          description="Ваше имя больше не будет привязано к Telegram. Другие игроки перестанут видеть вас в списке."
+          danger
+          onConfirm={handleUnbind}
+          onCancel={() => setShowUnbindConfirm(false)}
         />
       )}
 
