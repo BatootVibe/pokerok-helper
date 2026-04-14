@@ -20,6 +20,7 @@ export function ScheduledGamesPage() {
   const [venues, setVenues] = useState<string[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingGame, setEditingGame] = useState<ScheduledGame | null>(null);
+  const [formKey, setFormKey] = useState(0);
 
   // Form state
   const [venue, setVenue] = useState('');
@@ -57,6 +58,7 @@ export function ScheduledGamesPage() {
     setNewVenue('');
     setDateTime('');
     setPlayers([]);
+    setFormKey(k => k + 1);
     setShowForm(true);
   };
 
@@ -75,6 +77,7 @@ export function ScheduledGamesPage() {
     setNewVenue('');
     setDateTime(game.scheduledAt || '');
     setPlayers((game.players || []).map(name => ({ name })));
+    setFormKey(k => k + 1);
     setShowForm(true);
   }, []);
 
@@ -118,6 +121,7 @@ export function ScheduledGamesPage() {
       setNewVenue('');
       setDateTime('');
       setPlayers([]);
+      setFormKey(k => k + 1);
       setShowForm(false);
     } catch (err) {
       console.error('Failed to delete scheduled game:', err);
@@ -154,7 +158,7 @@ export function ScheduledGamesPage() {
         <div className="empty-state">Загрузка...</div>
       ) : showForm ? (
         <ScheduleForm
-          key={editingGame?.id || 'new-game'}
+          key={formKey}
           venues={venues}
           venue={venue}
           setVenue={setVenue}
