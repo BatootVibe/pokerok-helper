@@ -3,14 +3,9 @@ import { CompletedGame, ChipPreset, ScheduledGame } from '../types';
 const API_BASE = import.meta.env.VITE_API_URL || '';
 const API_TIMEOUT = 30000; // 30 секунд
 
-// Test mode: use fake tgId when running locally without Telegram WebApp
-const TEST_TG_ID = 'test123';
 function getTgId(): string | undefined {
   const tgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
-  if (tgId) return String(tgId);
-  // Fallback for local dev
-  if (import.meta.env.DEV) return TEST_TG_ID;
-  return undefined;
+  return tgId ? String(tgId) : undefined;
 }
 
 interface ApiError extends Error {

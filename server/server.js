@@ -18,7 +18,16 @@ db.exec(`
     buy_in_rubles REAL NOT NULL,
     chip_price_rubles REAL NOT NULL
   );
+`);
 
+// Добавляем finished_at если колонки нет (для старых БД)
+try {
+  db.exec(`ALTER TABLE games ADD COLUMN finished_at TEXT NOT NULL DEFAULT ''`);
+} catch (e) {
+  // Column already exists — ignore
+}
+
+db.exec(`
   CREATE TABLE IF NOT EXISTS game_results (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     game_id TEXT NOT NULL,
@@ -68,26 +77,13 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// === Dev: create test user for local testing ===
-if (process.env.NODE_ENV !== 'production') {
-  try {
-    db.prepare("INSERT OR IGNORE INTO users (tg_id, player_name) VALUES ('test123', 'Тест')").run();
-    console.log('[DEV] Test user created: test123');
-  } catch (e) {
-    // ignore
-  }
-}
-
 // === Auth Middleware ===
 
 // Middleware: проверка, что tgId привязан к профилю
 function requireBound(req, res, next) {
-  // Для DELETE/GET tgId может быть в query, для POST — в body
   const tgId = req.body?.tgId || req.query?.tgId;
-  console.log('[requireBound] tgId:', tgId, 'method:', req.method, 'path:', req.path);
   if (!tgId) return res.status(401).json({ error: 'Требуется привязка аккаунта' });
   const user = db.prepare('SELECT tg_id FROM users WHERE tg_id = ?').get(tgId);
-  console.log('[requireBound] user found:', !!user);
   if (!user) return res.status(403).json({ error: 'Привяжите аккаунт в настройках, чтобы выполнять это действие' });
   // Убираем tgId из body, чтобы не мешать валидации
   if (req.body && req.body.tgId) {

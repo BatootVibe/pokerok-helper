@@ -16,7 +16,7 @@ export function HistoryPage() {
 
   // Auth state
   const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
-  const currentTgId = tgUser ? String(tgUser.id) : (import.meta.env.DEV ? 'test123' : null);
+  const currentTgId = tgUser ? String(tgUser.id) : null;
   const [isBound, setIsBound] = useState(false);
 
   useEffect(() => {
