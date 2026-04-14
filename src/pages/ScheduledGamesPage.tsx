@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ScheduledGame } from '../types';
-import { loadScheduledGames, saveScheduledGame, deleteScheduledGame, loadVenues, getUserProfile } from '../utils/storage';
+import { loadScheduledGames, saveScheduledGame, deleteScheduledGame, loadVenues, getUserProfile, getAllPlayers } from '../utils/storage';
 import { generateId } from '../utils/id';
 import { HeaderBack } from '../components/HeaderBack';
 import { formatDate, formatTime, isPast } from '../utils/date';
@@ -76,12 +76,18 @@ export function ScheduledGamesPage() {
     setShowForm(false);
   };
 
-  const openEditForm = useCallback((game: ScheduledGame) => {
+  const openEditForm = useCallback(async (game: ScheduledGame) => {
     setEditingGame(game);
     setVenue(game.venue || '');
     setNewVenue('');
     setDateTime(game.scheduledAt || '');
-    setPlayers((game.players || []).map(name => ({ name })));
+    // Подставляем tgId для привязанных игроков
+    const allPlayers = await getAllPlayers();
+    const playerMap = new Map(allPlayers.map(p => [p.name.toLowerCase(), { name: p.name, tgId: p.tgId || undefined }]));
+    setPlayers((game.players || []).map(name => {
+      const linked = playerMap.get(name.toLowerCase());
+      return linked ? { name: linked.name, tgId: linked.tgId } : { name };
+    }));
     setFormKey(k => k + 1);
     setShowForm(true);
   }, []);
