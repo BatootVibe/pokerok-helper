@@ -333,10 +333,15 @@ app.post('/api/scheduled', (req, res) => {
     return res.status(400).json({ error: err });
   }
 
-  db.prepare(
-    'INSERT INTO scheduled_games (id, venue, scheduled_at, players, created_at) VALUES (?, ?, ?, ?, ?)'
-  ).run(id, venue, scheduledAt, JSON.stringify(players), createdAt || new Date().toISOString());
-  res.json({ success: true });
+  try {
+    db.prepare(
+      'INSERT OR REPLACE INTO scheduled_games (id, venue, scheduled_at, players, created_at) VALUES (?, ?, ?, ?, ?)'
+    ).run(id, venue, scheduledAt, JSON.stringify(players), createdAt || new Date().toISOString());
+    res.json({ success: true });
+  } catch (dbErr) {
+    console.error('Failed to save scheduled game:', dbErr.message);
+    res.status(500).json({ error: dbErr.message });
+  }
 });
 
 app.delete('/api/scheduled/:id', (req, res) => {

@@ -187,7 +187,13 @@ export async function loadScheduledGames(): Promise<ScheduledGame[]> {
 }
 
 export async function saveScheduledGame(game: ScheduledGame): Promise<void> {
-  await apiSaveScheduled(game);
+  try {
+    await apiSaveScheduled(game);
+  } catch {
+    apiAvailable = false;
+    apiLastFailTime = Date.now();
+    throw new Error('Не удалось сохранить игру на сервер');
+  }
   // Обновляем кэш только после успешного сохранения в API
   let games: ScheduledGame[] = [];
   try {
@@ -205,7 +211,13 @@ export async function saveScheduledGame(game: ScheduledGame): Promise<void> {
 }
 
 export async function deleteScheduledGame(id: string): Promise<void> {
-  await apiDeleteScheduled(id);
+  try {
+    await apiDeleteScheduled(id);
+  } catch {
+    apiAvailable = false;
+    apiLastFailTime = Date.now();
+    throw new Error('Не удалось удалить игру с сервера');
+  }
   // Обновляем кэш напрямую, без запроса к API
   let games: ScheduledGame[] = [];
   try {
