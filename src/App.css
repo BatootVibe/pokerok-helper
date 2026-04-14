@@ -244,6 +244,8 @@ body::before {
 .btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+  background: var(--btn-danger) !important;
+  color: white !important;
 }
 
 .btn-primary {
