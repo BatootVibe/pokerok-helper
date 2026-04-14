@@ -293,7 +293,7 @@ export function CreateGamePage() {
       {/* Кнопки действий (фиксированные) */}
       <div className="fixed-actions">
         <button
-          className="btn btn-primary"
+          className={`btn ${selectedPresetId && players.length >= 2 && startingChips && buyInRubles ? 'btn-success' : 'btn-primary'}`}
           onClick={() => {
             if (!selectedPresetId) {
               triggerHighlight('preset');
