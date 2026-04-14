@@ -5,13 +5,7 @@ import { generateId } from '../utils/id';
 import { HeaderBack } from '../components/HeaderBack';
 import { formatDate, formatTime, isPast } from '../utils/date';
 import { NEARBY_GAME_MARGIN, HOLD_INTERVAL } from '../utils/constants';
-
-// === Types ===
-
-interface Player {
-  name: string;
-  tgId?: string;
-}
+import { PlayerAutocomplete, Player } from '../components/PlayerAutocomplete';
 
 // === Main Page ===
 
@@ -272,7 +266,7 @@ function ScheduleForm({
         <label className="form-label">
           Игроки <span className="badge">{players.length}/10</span>
         </label>
-        <PlayerInput players={players} onAddPlayer={onAddPlayer} onRemovePlayer={onRemovePlayer} />
+        <PlayerAutocomplete players={players} onAddPlayer={onAddPlayer} onRemovePlayer={onRemovePlayer} />
         {players.length < 2 && (
           <p className="empty-text mt-8">Минимум 2 игрока</p>
         )}
@@ -354,72 +348,6 @@ function VenueSelector({
           ← Выбрать
         </button>
       )}
-    </div>
-  );
-}
-
-// === Player Input (simplified, no autocomplete portal issues) ===
-
-function PlayerInput({
-  players, onAddPlayer, onRemovePlayer, maxPlayers = 10,
-}: {
-  players: Player[];
-  onAddPlayer: (player: Player) => void;
-  onRemovePlayer: (index: number) => void;
-  maxPlayers?: number;
-}) {
-  const [input, setInput] = useState('');
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const safePlayers = players.filter(p => p && typeof p.name === 'string' && p.name.trim());
-
-  const addCurrentInput = () => {
-    const name = input.trim();
-    if (!name || safePlayers.length >= maxPlayers) return;
-    if (safePlayers.some(p => p.name.toLowerCase() === name.toLowerCase())) return;
-    onAddPlayer({ name });
-    setInput('');
-    inputRef.current?.focus();
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      addCurrentInput();
-    }
-  };
-
-  return (
-    <div className="player-autocomplete-wrapper">
-      {safePlayers.length > 0 && (
-        <div className="player-tags">
-          {safePlayers.map((p, i) => (
-            <span key={`${p.name}-${i}`} className="player-tag">
-              <span className={p.tgId ? 'verified-player' : ''}>{p.name}</span>
-              <span className="player-tag-remove" onClick={() => onRemovePlayer(i)}>×</span>
-            </span>
-          ))}
-        </div>
-      )}
-      <div className="autocomplete-input-row">
-        <input
-          ref={inputRef}
-          className="input"
-          type="text"
-          placeholder={safePlayers.length >= maxPlayers ? 'Лимит игроков' : 'Имя игрока'}
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          disabled={safePlayers.length >= maxPlayers}
-        />
-        <button
-          className="btn btn-primary btn-small autocomplete-add-btn"
-          onClick={addCurrentInput}
-          disabled={safePlayers.length >= maxPlayers || !input.trim()}
-        >
-          +
-        </button>
-      </div>
     </div>
   );
 }
