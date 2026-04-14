@@ -68,6 +68,18 @@ app.use(cors({
 }));
 app.use(express.json());
 
+// === Auth Middleware ===
+
+// Middleware: проверка, что tgId привязан к профилю
+function requireBound(req, res, next) {
+  // Для DELETE/GET tgId может быть в query, для POST — в body
+  const tgId = req.body?.tgId || req.query?.tgId;
+  if (!tgId) return res.status(401).json({ error: 'Требуется привязка аккаунта' });
+  const user = db.prepare('SELECT tg_id FROM users WHERE tg_id = ?').get(tgId);
+  if (!user) return res.status(403).json({ error: 'Привяжите аккаунт в настройках, чтобы выполнять это действие' });
+  next();
+}
+
 // === Validation helpers ===
 
 function validateString(val, name, minLen = 1) {
@@ -253,16 +265,6 @@ app.delete('/api/presets/:id', requireBound, (req, res) => {
 
 // ===== HEALTH =====
 // === Users API ===
-
-// Middleware: проверка, что tgId привязан к профилю
-function requireBound(req, res, next) {
-  // Для DELETE/GET tgId может быть в query, для POST — в body
-  const tgId = req.body?.tgId || req.query?.tgId;
-  if (!tgId) return res.status(401).json({ error: 'Требуется привязка аккаунта' });
-  const user = db.prepare('SELECT tg_id FROM users WHERE tg_id = ?').get(tgId);
-  if (!user) return res.status(403).json({ error: 'Привяжите аккаунт в настройках, чтобы выполнять это действие' });
-  next();
-}
 
 app.get('/api/users/:tgId', (req, res) => {
   const user = db.prepare('SELECT tg_id as tgId, player_name as name FROM users WHERE tg_id = ?').get(req.params.tgId);

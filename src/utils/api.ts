@@ -61,18 +61,21 @@ export function apiGetGames(): Promise<CompletedGame[]> {
 }
 
 export function apiSaveGame(game: CompletedGame): Promise<{ success: boolean }> {
+  const tgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
   return request('/api/games', {
     method: 'POST',
-    body: JSON.stringify(game),
+    body: JSON.stringify({ ...game, tgId }),
   });
 }
 
 export function apiDeleteGame(id: string): Promise<{ success: boolean }> {
-  return request(`/api/games/${id}`, { method: 'DELETE' });
+  const tgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+  return request(`/api/games/${id}?tgId=${tgId}`, { method: 'DELETE' });
 }
 
 export function apiClearAllGames(): Promise<{ success: boolean }> {
-  return request('/api/games', { method: 'DELETE' });
+  const tgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+  return request(`/api/games?tgId=${tgId}`, { method: 'DELETE' });
 }
 
 // Presets
@@ -81,14 +84,16 @@ export function apiGetPresets(): Promise<ChipPreset[]> {
 }
 
 export function apiSavePreset(preset: ChipPreset): Promise<{ success: boolean }> {
+  const tgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
   return request('/api/presets', {
     method: 'POST',
-    body: JSON.stringify(preset),
+    body: JSON.stringify({ ...preset, tgId }),
   });
 }
 
 export function apiDeletePreset(id: string): Promise<{ success: boolean }> {
-  return request(`/api/presets/${id}`, { method: 'DELETE' });
+  const tgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+  return request(`/api/presets/${id}?tgId=${tgId}`, { method: 'DELETE' });
 }
 
 // Scheduled Games
@@ -97,14 +102,16 @@ export function apiGetScheduled(): Promise<ScheduledGame[]> {
 }
 
 export function apiSaveScheduled(game: ScheduledGame): Promise<{ success: boolean }> {
+  const tgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
   return request('/api/scheduled', {
     method: 'POST',
-    body: JSON.stringify(game),
+    body: JSON.stringify({ ...game, tgId }),
   });
 }
 
 export function apiDeleteScheduled(id: string): Promise<{ success: boolean }> {
-  return request(`/api/scheduled/${id}`, { method: 'DELETE' });
+  const tgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+  return request(`/api/scheduled/${id}?tgId=${tgId}`, { method: 'DELETE' });
 }
 
 // Venues
