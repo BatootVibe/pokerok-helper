@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useGame } from '../context/GameContext';
-import { loadPresets, loadVenues, saveVenue, deleteVenue, loadGameHistory, findNearbyScheduledGame, deleteScheduledGame, getAllPlayers } from '../utils/storage';
+import { loadPresets, loadVenues, saveVenue, deleteVenue, loadGameHistory, findNearbyScheduledGame, deleteScheduledGame, getAllPlayers, getUserProfile } from '../utils/storage';
 import { HeaderBack } from '../components/HeaderBack';
 import { ChipPreset } from '../types';
 import { PlayerAutocomplete, Player } from '../components/PlayerAutocomplete';
@@ -52,13 +52,21 @@ export function CreateGamePage() {
       }
     });
 
-    // Проверка запланированных игр
-    findNearbyScheduledGame().then(game => {
-      if (game) {
-        setNearbyGame({ id: game.id, venue: game.venue, players: game.players });
-        setShowNearbyPrompt(true);
-      }
-    });
+    // Проверка запланированных игр (только для привязанных)
+    const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+    const currentTgId = tgUser ? String(tgUser.id) : null;
+    if (currentTgId) {
+      getUserProfile(currentTgId).then(profile => {
+        if (profile) {
+          findNearbyScheduledGame().then(game => {
+            if (game) {
+              setNearbyGame({ id: game.id, venue: game.venue, players: game.players });
+              setShowNearbyPrompt(true);
+            }
+          });
+        }
+      });
+    }
   }, []);
 
   // Авто-выбор пресета если вернулись со страницы создания пресета
