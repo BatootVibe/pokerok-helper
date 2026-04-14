@@ -152,6 +152,7 @@ export function ScheduledGamesPage() {
         <div className="empty-state">Загрузка...</div>
       ) : showForm ? (
         <ScheduleForm
+          key={editingGame?.id || 'new-game'}
           venues={venues}
           venue={venue}
           setVenue={setVenue}
