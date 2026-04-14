@@ -303,7 +303,6 @@ export function CreateGamePage() {
               handleCreate();
             }
           }}
-          disabled={!selectedPresetId || players.length < 2 || !startingChips || !buyInRubles}
         >
           {!selectedPresetId
             ? 'Выберите пресет'
