@@ -279,8 +279,12 @@ export async function saveUserProfile(profile: { name: string; tgId: string }): 
     return { success: true };
   } catch (e: unknown) {
     console.error('Failed to save profile to API', e);
-    const errorMessage = e instanceof Error ? e.message : 'Неизвестная ошибка';
-    return { success: false, error: errorMessage };
+    // Извлекаем читаемое сообщение об ошибке из ответа сервера
+    const apiErr = e as { status?: number; body?: { error?: string } };
+    if (apiErr.status === 409 && apiErr.body?.error) {
+      return { success: false, error: apiErr.body.error };
+    }
+    return { success: false, error: 'Ошибка при привязке. Попробуйте ещё раз.' };
   }
 }
 
