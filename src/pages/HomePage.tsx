@@ -29,7 +29,10 @@ export function HomePage() {
 
   return (
     <div className="page page-center">
-      <h1 className="app-title">😈 PokerOK 😈</h1>
+      <h1 className="app-title">
+        <img src="/logo.png" alt="Logo" className="app-logo" />
+        PokerOK Helper
+      </h1>
 
       <div className="home-grid">
         {cards.map(card => (

@@ -103,11 +103,21 @@ body::before {
 
 .app-title {
   text-align: center;
-  font-size: 32px;
+  font-size: 28px;
   font-weight: 800;
   color: var(--accent-gold);
   text-shadow: 0 4px 20px rgba(0,0,0,0.6);
   letter-spacing: -1px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.app-logo {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
 }
 
 /* === Back Button === */
