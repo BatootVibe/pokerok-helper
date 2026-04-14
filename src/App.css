@@ -127,23 +127,11 @@ body::before {
 /* === Back Button === */
 
 .back-btn {
-  background: rgba(255,255,255,0.1);
-  border: none;
-  border-radius: 50%;
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  color: var(--text-primary);
-  font-size: 18px;
-  flex-shrink: 0;
-  transition: background 0.2s;
+  display: none;
 }
 
 .back-btn:hover {
-  background: rgba(255,255,255,0.15);
+  background: none;
 }
 
 .btn-icon {
@@ -338,8 +326,9 @@ body::before {
   gap: 10px;
   cursor: pointer;
   transition: all 0.2s ease;
-  min-height: 130px;
+  height: 130px;
   box-shadow: none;
+  box-sizing: border-box;
 }
 
 .home-card.highlighted {

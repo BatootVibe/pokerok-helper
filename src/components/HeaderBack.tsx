@@ -1,11 +1,11 @@
 import { useNavigate } from 'react-router-dom';
+import { useSwipeBack } from '../utils/useSwipeBack';
 
 export function HeaderBack({ title }: { title: string }) {
-  const navigate = useNavigate();
+  useSwipeBack();
 
   return (
     <div className="page-header">
-      <button className="back-btn" onClick={() => navigate(-1)}>←</button>
       <h1 className="page-subtitle">{title}</h1>
     </div>
   );
