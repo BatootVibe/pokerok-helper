@@ -117,7 +117,7 @@ export function ScheduledGamesPage() {
                   setVenue(game.venue);
                   setNewVenue('');
                   setDateTime(game.scheduledAt);
-                  setPlayers(game.players.map(name => ({ name })));
+                  setPlayers((game.players || []).map(name => ({ name })));
                   setShowForm(true);
                 }}
               />
@@ -266,7 +266,7 @@ function VenueSelector({
       {venues.length > 0 && (
         <button
           className="btn btn-secondary btn-small mt-8"
-          onClick={() => { setNewVenue(''); }}
+          onClick={() => { setNewVenue(''); setVenue(venues[0] || ''); }}
         >
           ← Выбрать
         </button>
@@ -335,15 +335,15 @@ function ScheduledEntry({ game, onEdit }: {
         onTouchCancel={releaseHold}
       >
         <div className="scheduled-info">
-          <div className="scheduled-venue font-bold">{game.venue}</div>
+          <div className="scheduled-venue font-bold">{game.venue || 'Без локации'}</div>
           <div className="scheduled-time text-muted">
-            {formatDate(game.scheduledAt)} в {formatTime(game.scheduledAt)}
+            {game.scheduledAt ? `${formatDate(game.scheduledAt)} в ${formatTime(game.scheduledAt)}` : 'Дата не указана'}
           </div>
           <div className="scheduled-players text-muted">
-            {game.players.join(', ')}
+            {(game.players || []).join(', ')}
           </div>
           {holdProgress > 0 && (
-            <svg width="28" height="28" viewBox="0 0 24 24" className="hold-spinner-corner" style={{ transform: 'rotate(-90deg)' }}>
+            <svg width="28" height="28" viewBox="0 0 24 24" className="hold-spinner-corner" style={{ position: 'absolute', top: 8, right: 8, transform: 'rotate(-90deg)' }}>
               <circle cx="12" cy="12" r="10" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="2" />
               <circle
                 cx="12" cy="12" r="10"

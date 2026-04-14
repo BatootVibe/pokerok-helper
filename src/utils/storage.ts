@@ -178,6 +178,11 @@ export async function loadScheduledGames(): Promise<ScheduledGame[]> {
     () => apiGetScheduled(),
     LOCAL_SCHEDULED_KEY,
     [],
+  ).then(games =>
+    (games || []).filter(g =>
+      g && typeof g.id === 'string' && typeof g.venue === 'string' &&
+      typeof g.scheduledAt === 'string' && Array.isArray(g.players)
+    )
   );
 }
 
@@ -201,9 +206,14 @@ export async function saveScheduledGame(game: ScheduledGame): Promise<void> {
 
 export async function deleteScheduledGame(id: string): Promise<void> {
   await apiDeleteScheduled(id);
-  // Обновляем кэш после успешного удаления
-  const games = await loadScheduledGames();
-  const filtered = games.filter(g => g.id !== id);
+  // Обновляем кэш напрямую, без запроса к API
+  let games: ScheduledGame[] = [];
+  try {
+    games = JSON.parse(localStorage.getItem(LOCAL_SCHEDULED_KEY) || '[]');
+  } catch {
+    // corrupted
+  }
+  const filtered = games.filter((g: ScheduledGame) => g.id !== id);
   localStorage.setItem(LOCAL_SCHEDULED_KEY, JSON.stringify(filtered));
 }
 
