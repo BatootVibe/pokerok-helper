@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useGame } from '../context/GameContext';
-import { loadPresets, loadVenues, saveVenue, deleteVenue, loadGameHistory, findNearbyScheduledGame, deleteScheduledGame } from '../utils/storage';
+import { loadPresets, loadVenues, saveVenue, deleteVenue, loadGameHistory, findNearbyScheduledGame, deleteScheduledGame, getAllPlayers } from '../utils/storage';
 import { HeaderBack } from '../components/HeaderBack';
 import { ChipPreset } from '../types';
 import { PlayerAutocomplete, Player } from '../components/PlayerAutocomplete';
@@ -95,8 +95,14 @@ export function CreateGamePage() {
         }
         setSelectedVenue(nearbyGame.venue);
       }
-      // Преобразуем строки игроков в объекты
-      setPlayers(nearbyGame.players.map(name => ({ name })));
+      // Загружаем привязанных игроков и подставляем tgId
+      const allPlayers = await getAllPlayers();
+      const playerMap = new Map(allPlayers.map(p => [p.name.toLowerCase(), { name: p.name, tgId: p.tgId || undefined }]));
+      const playersWithTgId = nearbyGame.players.map(name => {
+        const linked = playerMap.get(name.toLowerCase());
+        return linked ? { name: linked.name, tgId: linked.tgId } : { name };
+      });
+      setPlayers(playersWithTgId);
     }
     setShowNearbyPrompt(false);
   }, [nearbyGame]);
