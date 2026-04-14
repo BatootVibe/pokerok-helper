@@ -51,6 +51,13 @@ export function SettingsPage() {
     }
   };
 
+  const handleResetApp = () => {
+    if (confirm('Сбросить все данные приложения? Это очистит кэш и вернёт настройки по умолчанию.')) {
+      localStorage.clear();
+      window.location.reload();
+    }
+  };
+
   const handleClear = useCallback(async () => {
     try {
       await clearGameHistory();
@@ -81,15 +88,16 @@ export function SettingsPage() {
               <span className="profile-name">{userProfile.name}</span>
               <span className="profile-id">ID: {userProfile.tgId.slice(-6)}</span>
             </div>
-            <div className="mt-8">
+            <div className="mt-12" style={{ display: 'flex', gap: '8px' }}>
               <button
                 className="btn btn-danger btn-small"
+                style={{ flex: 1 }}
                 onClick={(e) => {
                   e.stopPropagation();
                   setShowUnbindConfirm(true);
                 }}
               >
-                Отвязать аккаунт
+                🔓 Отвязать
               </button>
             </div>
           </>
@@ -105,6 +113,10 @@ export function SettingsPage() {
       </div>
 
       <div className="fixed-actions">
+        {/* TODO: remove after testing */}
+        <button className="btn btn-warning" onClick={handleResetApp} style={{ marginBottom: '8px', width: '100%' }}>
+          🔄 Сбросить данные
+        </button>
         <button className="btn btn-danger" onClick={() => setShowConfirm(true)}>
           🗑️ Очистить историю
         </button>
