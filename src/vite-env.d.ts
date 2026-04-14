@@ -28,9 +28,6 @@ interface TelegramWebApp {
     initDataUnsafe: {
       user?: TelegramUser;
     };
-    HapticFeedback?: {
-      impactOccurred: (style: string) => void;
-    };
   };
 }
 
