@@ -318,7 +318,13 @@ app.get('/api/health', (req, res) => {
 
 app.get('/api/scheduled', (req, res) => {
   const games = db.prepare('SELECT * FROM scheduled_games ORDER BY scheduled_at DESC').all();
-  res.json(games.map(g => ({ ...g, players: JSON.parse(g.players) })));
+  res.json(games.map(g => ({
+    id: g.id,
+    venue: g.venue,
+    scheduledAt: g.scheduled_at,
+    players: JSON.parse(g.players),
+    createdAt: g.created_at,
+  })));
 });
 
 app.post('/api/scheduled', (req, res) => {
