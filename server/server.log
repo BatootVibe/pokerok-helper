@@ -1,0 +1,7 @@
+[DEV] Test user created: test123
+Server running on port 3001
+[requireBound] tgId: test123 method: POST path: /api/games
+[requireBound] user found: true
+Unhandled error: table games has no column named venue
+[requireBound] tgId: undefined method: POST path: /api/games
+[requireBound] tgId: undefined method: POST path: /api/games

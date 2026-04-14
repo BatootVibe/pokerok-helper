@@ -230,11 +230,14 @@ function PresetListItem({ preset, onEdit }: {
   onEdit: () => void;
 }) {
   const holdTimerRef = useRef<number | null>(null);
+  const [isHolding, setIsHolding] = useState(false);
   const EDIT_HOLD_DURATION = 2000;
 
   const startHold = () => {
+    setIsHolding(true);
     holdTimerRef.current = window.setTimeout(() => {
       holdTimerRef.current = null;
+      setIsHolding(false);
       onEdit();
     }, EDIT_HOLD_DURATION);
   };
@@ -244,6 +247,7 @@ function PresetListItem({ preset, onEdit }: {
       clearTimeout(holdTimerRef.current);
       holdTimerRef.current = null;
     }
+    setIsHolding(false);
   };
 
   useEffect(() => {
@@ -256,7 +260,7 @@ function PresetListItem({ preset, onEdit }: {
 
   return (
     <div
-      className="preset-card"
+      className={`preset-card ${isHolding ? 'holding' : ''}`}
       onMouseDown={startHold}
       onMouseUp={releaseHold}
       onMouseLeave={releaseHold}

@@ -363,6 +363,7 @@ function VenueSelector({
 
 function ScheduledEntry({ game, onEdit, canEdit }: { game: ScheduledGame; onEdit: () => void; canEdit: boolean }) {
   const holdTimerRef = useRef<number | null>(null);
+  const [isHolding, setIsHolding] = useState(false);
 
   const EDIT_HOLD_DURATION = 3000;
 
@@ -373,8 +374,10 @@ function ScheduledEntry({ game, onEdit, canEdit }: { game: ScheduledGame; onEdit
 
   const startHold = () => {
     if (!canEdit) return;
+    setIsHolding(true);
     holdTimerRef.current = window.setTimeout(() => {
       holdTimerRef.current = null;
+      setIsHolding(false);
       onEdit();
     }, EDIT_HOLD_DURATION);
   };
@@ -384,6 +387,7 @@ function ScheduledEntry({ game, onEdit, canEdit }: { game: ScheduledGame; onEdit
       clearTimeout(holdTimerRef.current);
       holdTimerRef.current = null;
     }
+    setIsHolding(false);
   };
 
   useEffect(() => {
@@ -394,7 +398,7 @@ function ScheduledEntry({ game, onEdit, canEdit }: { game: ScheduledGame; onEdit
 
   return (
     <div
-      className={`card scheduled-entry ${past ? 'past' : ''}`}
+      className={`card scheduled-entry ${past ? 'past' : ''} ${isHolding ? 'holding' : ''}`}
       onMouseDown={startHold}
       onMouseUp={releaseHold}
       onMouseLeave={releaseHold}

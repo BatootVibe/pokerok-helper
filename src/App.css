@@ -531,6 +531,15 @@ body::before {
   padding: 12px 14px;
   position: relative;
   overflow: hidden;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.preset-card.holding {
+  background-color: rgba(255, 255, 255, 0.12);
+  outline: 2px solid var(--accent-gold);
+  outline-offset: -4px;
+  transition: background-color 0.15s ease, outline 0.15s ease;
 }
 
 .preset-card-header {
@@ -1465,6 +1474,15 @@ body::before {
 .scheduled-entry {
   opacity: 1;
   position: relative;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.scheduled-entry.holding {
+  background-color: rgba(255, 255, 255, 0.1);
+  outline: 2px solid var(--accent-gold);
+  outline-offset: -4px;
+  transition: background-color 0.15s ease, outline 0.15s ease;
 }
 
 .scheduled-entry.past {
