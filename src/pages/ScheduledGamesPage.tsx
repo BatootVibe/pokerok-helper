@@ -51,14 +51,23 @@ export function ScheduledGamesPage() {
 
   // ---- Form handlers ----
 
-  const resetForm = useCallback(() => {
+  const openNewGameForm = () => {
+    setEditingGame(null);
+    setVenue('');
+    setNewVenue('');
+    setDateTime('');
+    setPlayers([]);
+    setShowForm(true);
+  };
+
+  const closeForm = () => {
     setEditingGame(null);
     setVenue('');
     setNewVenue('');
     setDateTime('');
     setPlayers([]);
     setShowForm(false);
-  }, []);
+  };
 
   const openEditForm = useCallback((game: ScheduledGame) => {
     setEditingGame(game);
@@ -83,24 +92,36 @@ export function ScheduledGamesPage() {
 
     try {
       await saveScheduledGame(game);
-      resetForm();
+      // Сбрасываем форму вручную
+      setEditingGame(null);
+      setVenue('');
+      setNewVenue('');
+      setDateTime('');
+      setPlayers([]);
+      setShowForm(false);
       await loadData();
     } catch (err) {
       console.error('Failed to save scheduled game:', err);
       alert('Не удалось сохранить игру на сервер. Попробуйте ещё раз.');
     }
-  }, [newVenue, venue, dateTime, players, editingGame, resetForm, loadData]);
+  }, [newVenue, venue, dateTime, players, editingGame, loadData]);
 
   const handleDelete = useCallback(async (id: string) => {
     try {
       await deleteScheduledGame(id);
-      resetForm();
+      // Сброс формы вручную, без resetForm
+      setEditingGame(null);
+      setVenue('');
+      setNewVenue('');
+      setDateTime('');
+      setPlayers([]);
+      setShowForm(false);
       await loadData();
     } catch (err) {
       console.error('Failed to delete scheduled game:', err);
       alert('Не удалось удалить игру с сервера.');
     }
-  }, [resetForm, loadData]);
+  }, [loadData]);
 
   const handleAddPlayer = useCallback((player: Player) => {
     if (!player || !player.name) return;
@@ -144,7 +165,7 @@ export function ScheduledGamesPage() {
           editingGame={editingGame}
           onSave={handleSave}
           onDelete={editingGame ? () => handleDelete(editingGame.id) : undefined}
-          onCancel={resetForm}
+          onCancel={closeForm}
         />
       ) : sorted.length > 0 ? (
         <div className="mt-16">
@@ -162,7 +183,7 @@ export function ScheduledGamesPage() {
 
       <div className="fixed-actions">
         {!showForm && (
-          <button className="btn btn-secondary" onClick={() => setShowForm(true)}>
+          <button className="btn btn-secondary" onClick={openNewGameForm}>
             + Запланировать игру
           </button>
         )}
