@@ -120,6 +120,10 @@ body::before {
   object-fit: contain;
 }
 
+.app-logo-flipped {
+  transform: scaleX(-1);
+}
+
 /* === Back Button === */
 
 .back-btn {

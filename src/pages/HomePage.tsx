@@ -32,6 +32,7 @@ export function HomePage() {
       <h1 className="app-title">
         <img src="/logo.png" alt="Logo" className="app-logo" />
         PokerOK Helper
+        <img src="/logo.png" alt="Logo" className="app-logo app-logo-flipped" />
       </h1>
 
       <div className="home-grid">
