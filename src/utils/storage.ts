@@ -271,21 +271,21 @@ export async function getUserProfile(tgId: string): Promise<{ name: string; tgId
 }
 
 export async function saveUserProfile(profile: { name: string; tgId: string }): Promise<{ success: boolean; error?: string }> {
-  // Всегда сохраняем в localStorage
-  localStorage.setItem(LOCAL_USER_PROFILE_KEY + profile.tgId, JSON.stringify(profile));
-
+  // Сначала пробуем API
   try {
     await apiPost('/api/users', profile);
-    return { success: true };
   } catch (e: unknown) {
     console.error('Failed to save profile to API', e);
-    // Извлекаем читаемое сообщение об ошибке из ответа сервера
     const apiErr = e as { status?: number; body?: { error?: string } };
     if (apiErr.status === 409 && apiErr.body?.error) {
       return { success: false, error: apiErr.body.error };
     }
     return { success: false, error: 'Ошибка при привязке. Попробуйте ещё раз.' };
   }
+
+  // Только после успешного API-запроса обновляем кэш
+  localStorage.setItem(LOCAL_USER_PROFILE_KEY + profile.tgId, JSON.stringify(profile));
+  return { success: true };
 }
 
 export async function deleteUserProfile(tgId: string): Promise<void> {
