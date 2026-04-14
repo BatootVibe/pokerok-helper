@@ -249,27 +249,26 @@ export async function findNearbyScheduledGame(): Promise<ScheduledGame | null> {
 // === User Profile & Players ===
 
 export async function getUserProfile(tgId: string): Promise<{ name: string; tgId: string } | null> {
-  // Сначала пробуем из localStorage
-  try {
-    const cached = localStorage.getItem(LOCAL_USER_PROFILE_KEY + tgId);
-    if (cached) {
-      return JSON.parse(cached);
-    }
-  } catch {
-    // ignore
-  }
-
-  // Если нет в localStorage — пробуем API
+  // 1. Сначала всегда пробуем получить актуальные данные с сервера
   try {
     const data = await apiGet<{ name: string; tgId: string } | null>(`/api/users/${tgId}`);
-    // Кэшируем в localStorage
+    // Если сервер вернул данные — обновляем кэш и возвращаем их
     if (data) {
       localStorage.setItem(LOCAL_USER_PROFILE_KEY + tgId, JSON.stringify(data));
+      return data;
     }
-    return data;
   } catch {
-    return null;
+    // Если сервер недоступен — пробуем достать из кэша (офлайн режим)
+    try {
+      const cached = localStorage.getItem(LOCAL_USER_PROFILE_KEY + tgId);
+      if (cached) {
+        return JSON.parse(cached);
+      }
+    } catch {
+      // ignore
+    }
   }
+  return null;
 }
 
 export async function saveUserProfile(profile: { name: string; tgId: string }): Promise<{ success: boolean; error?: string }> {
