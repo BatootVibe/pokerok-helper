@@ -17,10 +17,15 @@ export function SettingsPage() {
   const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
   const currentTgId = tgUser ? String(tgUser.id) : null;
 
+  const [isBound, setIsBound] = useState(false);
+
   // Загружаем профиль при входе
   useEffect(() => {
     if (currentTgId) {
-      getUserProfile(currentTgId).then(profile => setUserProfile(profile));
+      getUserProfile(currentTgId).then(profile => {
+        setUserProfile(profile);
+        setIsBound(!!profile);
+      });
     }
   }, [currentTgId]);
 
@@ -114,12 +119,16 @@ export function SettingsPage() {
 
       <div className="fixed-actions">
         {/* TODO: remove after testing */}
-        <button className="btn btn-warning" onClick={handleResetApp} style={{ marginBottom: '8px', width: '100%' }}>
-          🔄 Сбросить данные
-        </button>
-        <button className="btn btn-danger" onClick={() => setShowConfirm(true)}>
-          🗑️ Очистить историю
-        </button>
+        {isBound && (
+          <button className="btn btn-warning" onClick={handleResetApp} style={{ marginBottom: '8px', width: '100%' }}>
+            🔄 Сбросить данные
+          </button>
+        )}
+        {isBound && (
+          <button className="btn btn-danger" onClick={() => setShowConfirm(true)}>
+            🗑️ Очистить историю
+          </button>
+        )}
       </div>
 
       {showConfirm && (

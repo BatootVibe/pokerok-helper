@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ChipPreset, ChipEntry, ChipColor, CHIP_COLOR_MAP } from '../types';
-import { loadPresets, savePresets, deletePreset } from '../utils/storage';
+import { loadPresets, savePresets, deletePreset, getUserProfile } from '../utils/storage';
 import { generateId } from '../utils/id';
 import { DEFAULT_CHIP_ENTRIES } from '../utils/constants';
 import { HeaderBack } from '../components/HeaderBack';
@@ -22,6 +22,17 @@ export function PresetsPage() {
   const [newPresetName, setNewPresetName] = useState('');
   const [chipEntries, setChipEntries] = useState<ChipEntry[]>(DEFAULT_CHIP_ENTRIES);
   const [isDuplicateName, setIsDuplicateName] = useState(false);
+
+  // Auth state
+  const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+  const currentTgId = tgUser ? String(tgUser.id) : null;
+  const [isBound, setIsBound] = useState(false);
+
+  useEffect(() => {
+    if (currentTgId) {
+      getUserProfile(currentTgId).then(profile => setIsBound(!!profile));
+    }
+  }, [currentTgId]);
 
   useEffect(() => {
     if (!newPresetName.trim()) {
@@ -144,17 +155,24 @@ export function PresetsPage() {
 
       {!showForm && (
         <>
-          <PresetList
-            presets={presets}
-            onEdit={openEdit}
-          />
-          {presets.length > 0 && (
-            <p className="page-hint text-center">Удерживайте карточку 2 сек для редактирования</p>
+          {!isBound && (
+            <div className="empty-state">
+              <div className="empty-state-icon">🔒</div>
+              Привяжите аккаунт в настройках, чтобы управлять пресетами
+            </div>
+          )}
+          {isBound && (
+            <>
+              <PresetList presets={presets} onEdit={openEdit} />
+              {presets.length > 0 && (
+                <p className="page-hint text-center">Удерживайте карточку 2 сек для редактирования</p>
+              )}
+            </>
           )}
         </>
       )}
 
-      {showForm ? (
+      {showForm && isBound ? (
         <PresetForm
           name={newPresetName}
           setName={setNewPresetName}
@@ -179,9 +197,11 @@ export function PresetsPage() {
         />
       ) : (
         <div className="fixed-actions">
-          <button className="btn btn-secondary" onClick={openNew}>
-            ✨ Новый пресет
-          </button>
+          {isBound && (
+            <button className="btn btn-secondary" onClick={openNew}>
+              ✨ Новый пресет
+            </button>
+          )}
         </div>
       )}
     </div>

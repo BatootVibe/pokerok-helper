@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ScheduledGame } from '../types';
-import { loadScheduledGames, saveScheduledGame, deleteScheduledGame, loadVenues } from '../utils/storage';
+import { loadScheduledGames, saveScheduledGame, deleteScheduledGame, loadVenues, getUserProfile } from '../utils/storage';
 import { generateId } from '../utils/id';
 import { HeaderBack } from '../components/HeaderBack';
 import { formatDate, formatTime, isPast } from '../utils/date';
@@ -30,6 +30,17 @@ export function ScheduledGamesPage() {
 
   // Loading state
   const [loading, setLoading] = useState(true);
+
+  // Auth state
+  const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+  const currentTgId = tgUser ? String(tgUser.id) : null;
+  const [isBound, setIsBound] = useState(false);
+
+  useEffect(() => {
+    if (currentTgId) {
+      getUserProfile(currentTgId).then(profile => setIsBound(!!profile));
+    }
+  }, [currentTgId]);
 
   // ---- Data loading ----
 
@@ -156,6 +167,11 @@ export function ScheduledGamesPage() {
 
       {loading ? (
         <div className="empty-state">Загрузка...</div>
+      ) : !isBound ? (
+        <div className="empty-state">
+          <div className="empty-state-icon">🔒</div>
+          Привяжите аккаунт в настройках, чтобы управлять расписанием
+        </div>
       ) : showForm ? (
         <ScheduleForm
           key={formKey}
@@ -189,7 +205,7 @@ export function ScheduledGamesPage() {
       )}
 
       <div className="fixed-actions">
-        {!showForm && (
+        {!showForm && isBound && (
           <button className="btn btn-secondary" onClick={openNewGameForm}>
             + Запланировать игру
           </button>

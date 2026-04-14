@@ -137,7 +137,7 @@ app.get('/api/games', (req, res) => {
 });
 
 // Сохранить завершённую игру
-app.post('/api/games', (req, res) => {
+app.post('/api/games', requireBound, (req, res) => {
   const { id, date, players, startingChips, buyInRubles, chipPriceRubles, finishedAt, venue } = req.body;
 
   const err = validateString(id, 'id')
@@ -194,7 +194,7 @@ app.post('/api/games', (req, res) => {
 });
 
 // Удалить игру
-app.delete('/api/games/:id', (req, res) => {
+app.delete('/api/games/:id', requireBound, (req, res) => {
   const { id } = req.params;
   const tx = db.transaction(() => {
     db.prepare('DELETE FROM game_results WHERE game_id = ?').run(id);
@@ -205,7 +205,7 @@ app.delete('/api/games/:id', (req, res) => {
 });
 
 // Очистить всю историю
-app.delete('/api/games', (req, res) => {
+app.delete('/api/games', requireBound, (req, res) => {
   db.exec('DELETE FROM game_results; DELETE FROM games;');
   res.json({ success: true });
 });
@@ -222,7 +222,7 @@ app.get('/api/presets', (req, res) => {
   res.json(result);
 });
 
-app.post('/api/presets', (req, res) => {
+app.post('/api/presets', requireBound, (req, res) => {
   const { id, name, chips } = req.body;
 
   const err = validateString(id, 'id')
@@ -246,13 +246,23 @@ app.post('/api/presets', (req, res) => {
   res.json({ success: true });
 });
 
-app.delete('/api/presets/:id', (req, res) => {
+app.delete('/api/presets/:id', requireBound, (req, res) => {
   db.prepare('DELETE FROM presets WHERE id = ?').run(req.params.id);
   res.json({ success: true });
 });
 
 // ===== HEALTH =====
 // === Users API ===
+
+// Middleware: проверка, что tgId привязан к профилю
+function requireBound(req, res, next) {
+  // Для DELETE/GET tgId может быть в query, для POST — в body
+  const tgId = req.body?.tgId || req.query?.tgId;
+  if (!tgId) return res.status(401).json({ error: 'Требуется привязка аккаунта' });
+  const user = db.prepare('SELECT tg_id FROM users WHERE tg_id = ?').get(tgId);
+  if (!user) return res.status(403).json({ error: 'Привяжите аккаунт в настройках, чтобы выполнять это действие' });
+  next();
+}
 
 app.get('/api/users/:tgId', (req, res) => {
   const user = db.prepare('SELECT tg_id as tgId, player_name as name FROM users WHERE tg_id = ?').get(req.params.tgId);
@@ -333,7 +343,7 @@ app.get('/api/scheduled', (req, res) => {
   })));
 });
 
-app.post('/api/scheduled', (req, res) => {
+app.post('/api/scheduled', requireBound, (req, res) => {
   const { id, venue, scheduledAt, players, createdAt } = req.body;
 
   const err = validateString(id, 'id')
@@ -356,7 +366,7 @@ app.post('/api/scheduled', (req, res) => {
   }
 });
 
-app.delete('/api/scheduled/:id', (req, res) => {
+app.delete('/api/scheduled/:id', requireBound, (req, res) => {
   db.prepare('DELETE FROM scheduled_games WHERE id = ?').run(req.params.id);
   res.json({ success: true });
 });

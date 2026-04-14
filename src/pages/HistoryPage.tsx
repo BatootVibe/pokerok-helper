@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { loadGameHistory, deleteCompletedGame } from '../utils/storage';
+import { loadGameHistory, deleteCompletedGame, getUserProfile } from '../utils/storage';
 import { CompletedGame } from '../types';
 import { HeaderBack } from '../components/HeaderBack';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -13,6 +13,17 @@ export function HistoryPage() {
   const [history, setHistory] = useState<CompletedGame[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedGameId, setExpandedGameId] = useState<string | null>(null);
+
+  // Auth state
+  const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+  const currentTgId = tgUser ? String(tgUser.id) : null;
+  const [isBound, setIsBound] = useState(false);
+
+  useEffect(() => {
+    if (currentTgId) {
+      getUserProfile(currentTgId).then(profile => setIsBound(!!profile));
+    }
+  }, [currentTgId]);
 
   const loadHistory = useCallback(() => {
     loadGameHistory()
@@ -60,8 +71,9 @@ export function HistoryPage() {
             game={game}
             isExpanded={expandedGameId === game.id}
             onToggle={() => toggleGame(game.id)}
-            onDelete={() => handleDeleteGame(game.id)}
+            onDelete={() => isBound && handleDeleteGame(game.id)}
             isVerified={isVerified}
+            isBound={isBound}
           />
         ))
       )}
@@ -82,12 +94,13 @@ export function HistoryPage() {
 
 // === Sub-components ===
 
-function GameEntry({ game, isExpanded, onToggle, onDelete, isVerified }: {
+function GameEntry({ game, isExpanded, onToggle, onDelete, isVerified, isBound }: {
   game: CompletedGame;
   isExpanded: boolean;
   onToggle: () => void;
   onDelete: () => void;
   isVerified: (name: string) => boolean;
+  isBound: boolean;
 }) {
   const [activeTab, setActiveTab] = useState<'results' | 'debts'>('results');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -153,11 +166,13 @@ function GameEntry({ game, isExpanded, onToggle, onDelete, isVerified }: {
             </div>
           )}
 
-          <div className="full-width">
-            <button className="btn btn-danger btn-small" onClick={() => setShowDeleteConfirm(true)}>
-              Удалить запись
-            </button>
-          </div>
+          {isBound && (
+            <div className="full-width">
+              <button className="btn btn-danger btn-small" onClick={() => setShowDeleteConfirm(true)}>
+                Удалить запись
+              </button>
+            </div>
+          )}
 
           {showDeleteConfirm && (
             <ConfirmModal

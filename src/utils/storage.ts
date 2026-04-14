@@ -115,6 +115,8 @@ export async function clearGameHistory(): Promise<void> {
     apiLastFailTime = Date.now();
     throw new Error('Не удалось очистить историю на сервере');
   }
+  // Сбрасываем кэш последней игры
+  window.lastGamePlayers = undefined;
 }
 
 // === Presets ===
