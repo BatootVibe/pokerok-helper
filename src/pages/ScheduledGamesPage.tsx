@@ -92,14 +92,15 @@ export function ScheduledGamesPage() {
 
     try {
       await saveScheduledGame(game);
-      // Сбрасываем форму вручную
+      // Обновляем стейт напрямую
+      await loadData();
+      // Сбрасываем форму после успешного сохранения
       setEditingGame(null);
       setVenue('');
       setNewVenue('');
       setDateTime('');
       setPlayers([]);
       setShowForm(false);
-      await loadData();
     } catch (err) {
       console.error('Failed to save scheduled game:', err);
       alert('Не удалось сохранить игру на сервер. Попробуйте ещё раз.');
@@ -109,19 +110,20 @@ export function ScheduledGamesPage() {
   const handleDelete = useCallback(async (id: string) => {
     try {
       await deleteScheduledGame(id);
-      // Сброс формы вручную, без resetForm
+      // Обновляем стейт напрямую, без перезагрузки из API/localStorage
+      setScheduled(prev => prev.filter(g => g.id !== id));
+      // Сбрасываем форму
       setEditingGame(null);
       setVenue('');
       setNewVenue('');
       setDateTime('');
       setPlayers([]);
       setShowForm(false);
-      await loadData();
     } catch (err) {
       console.error('Failed to delete scheduled game:', err);
       alert('Не удалось удалить игру с сервера.');
     }
-  }, [loadData]);
+  }, []);
 
   const handleAddPlayer = useCallback((player: Player) => {
     if (!player || !player.name) return;
