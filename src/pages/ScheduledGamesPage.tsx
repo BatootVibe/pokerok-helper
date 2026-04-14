@@ -4,7 +4,7 @@ import { loadScheduledGames, saveScheduledGame, deleteScheduledGame, loadVenues,
 import { generateId } from '../utils/id';
 import { HeaderBack } from '../components/HeaderBack';
 import { formatDate, formatTime, isPast } from '../utils/date';
-import { NEARBY_GAME_MARGIN, HOLD_INTERVAL } from '../utils/constants';
+import { NEARBY_GAME_MARGIN } from '../utils/constants';
 import { PlayerAutocomplete, Player } from '../components/PlayerAutocomplete';
 
 // === Main Page ===
@@ -363,10 +363,8 @@ function VenueSelector({
 
 function ScheduledEntry({ game, onEdit, canEdit }: { game: ScheduledGame; onEdit: () => void; canEdit: boolean }) {
   const holdTimerRef = useRef<number | null>(null);
-  const [holdProgress, setHoldProgress] = useState(0);
 
   const EDIT_HOLD_DURATION = 3000;
-  const EDIT_HOLD_DELAY = 1500;
 
   const safeVenue = game.venue || 'Без локации';
   const safePlayers = Array.isArray(game.players) ? game.players : [];
@@ -375,52 +373,36 @@ function ScheduledEntry({ game, onEdit, canEdit }: { game: ScheduledGame; onEdit
 
   const startHold = () => {
     if (!canEdit) return;
-    const start = Date.now();
-    const interval = setInterval(() => {
-      const elapsed = Date.now() - start;
-      const ringProgress = elapsed < EDIT_HOLD_DELAY
-        ? 0
-        : Math.min((elapsed - EDIT_HOLD_DELAY) / (EDIT_HOLD_DURATION - EDIT_HOLD_DELAY), 1);
-      setHoldProgress(ringProgress);
-      if (elapsed >= EDIT_HOLD_DURATION) {
-        clearInterval(interval);
-        holdTimerRef.current = null;
-        onEdit();
-        setHoldProgress(0);
-      }
-    }, HOLD_INTERVAL);
-    holdTimerRef.current = interval;
+    holdTimerRef.current = window.setTimeout(() => {
+      holdTimerRef.current = null;
+      onEdit();
+    }, EDIT_HOLD_DURATION);
   };
 
   const releaseHold = () => {
     if (holdTimerRef.current) {
-      clearInterval(holdTimerRef.current);
+      clearTimeout(holdTimerRef.current);
       holdTimerRef.current = null;
     }
-    setHoldProgress(0);
   };
 
   useEffect(() => {
     return () => {
-      if (holdTimerRef.current) clearInterval(holdTimerRef.current);
+      if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
     };
   }, []);
 
-  const circumference = 2 * Math.PI * 8;
-  const dashOffset = circumference * (1 - holdProgress);
-
   return (
-    <div className={`card scheduled-entry ${past ? 'past' : ''}`}>
-      <div
-        className="scheduled-header"
-        style={{ position: 'relative' }}
-        onMouseDown={startHold}
-        onMouseUp={releaseHold}
-        onMouseLeave={releaseHold}
-        onTouchStart={startHold}
-        onTouchEnd={releaseHold}
-        onTouchCancel={releaseHold}
-      >
+    <div
+      className={`card scheduled-entry ${past ? 'past' : ''}`}
+      onMouseDown={startHold}
+      onMouseUp={releaseHold}
+      onMouseLeave={releaseHold}
+      onTouchStart={startHold}
+      onTouchEnd={releaseHold}
+      onTouchCancel={releaseHold}
+    >
+      <div className="scheduled-header">
         <div className="scheduled-info">
           <div className="scheduled-venue font-bold">{safeVenue}</div>
           <div className="scheduled-time text-muted">
@@ -432,36 +414,6 @@ function ScheduledEntry({ game, onEdit, canEdit }: { game: ScheduledGame; onEdit
             {safePlayers.join(', ') || 'Нет игроков'}
           </div>
         </div>
-        {holdProgress > 0 && (
-          <svg
-            width="28"
-            height="28"
-            viewBox="0 0 24 24"
-            className="hold-spinner-corner"
-            style={{
-              position: 'absolute',
-              top: 8,
-              right: 8,
-              transform: 'rotate(-90deg)',
-              flexShrink: 0,
-            }}
-          >
-            <circle
-              cx="12" cy="12" r="10"
-              fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="2"
-            />
-            <circle
-              cx="12" cy="12" r="10"
-              fill="none"
-              stroke="var(--accent-gold)"
-              strokeWidth="2"
-              strokeDasharray={circumference}
-              strokeDashoffset={dashOffset}
-              strokeLinecap="round"
-              className="hold-spinner-progress"
-            />
-          </svg>
-        )}
       </div>
     </div>
   );

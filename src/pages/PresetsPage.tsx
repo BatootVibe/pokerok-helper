@@ -5,7 +5,6 @@ import { loadPresets, savePresets, deletePreset, getUserProfile } from '../utils
 import { generateId } from '../utils/id';
 import { DEFAULT_CHIP_ENTRIES } from '../utils/constants';
 import { HeaderBack } from '../components/HeaderBack';
-import { HOLD_INTERVAL } from '../utils/constants';
 
 const ALL_COLORS: ChipColor[] = [
   'white', 'red', 'blue', 'green', 'black', 'purple', 'yellow', 'pink', 'gray',
@@ -231,75 +230,43 @@ function PresetListItem({ preset, onEdit }: {
   onEdit: () => void;
 }) {
   const holdTimerRef = useRef<number | null>(null);
-  const [holdProgress, setHoldProgress] = useState(0);
   const EDIT_HOLD_DURATION = 2000;
-  const EDIT_HOLD_DELAY = 1000;
 
   const startHold = () => {
-    const start = Date.now();
-    const interval = setInterval(() => {
-      const elapsed = Date.now() - start;
-      const ringProgress = elapsed < EDIT_HOLD_DELAY
-        ? 0
-        : Math.min((elapsed - EDIT_HOLD_DELAY) / (EDIT_HOLD_DURATION - EDIT_HOLD_DELAY), 1);
-      setHoldProgress(ringProgress);
-      if (elapsed >= EDIT_HOLD_DURATION) {
-        clearInterval(interval);
-        holdTimerRef.current = null;
-        onEdit();
-        setHoldProgress(0);
-      }
-    }, HOLD_INTERVAL);
-    holdTimerRef.current = interval;
+    holdTimerRef.current = window.setTimeout(() => {
+      holdTimerRef.current = null;
+      onEdit();
+    }, EDIT_HOLD_DURATION);
   };
 
   const releaseHold = () => {
     if (holdTimerRef.current) {
-      clearInterval(holdTimerRef.current);
+      clearTimeout(holdTimerRef.current);
       holdTimerRef.current = null;
     }
-    setHoldProgress(0);
   };
-
-  const circumference = 2 * Math.PI * 8;
-  const dashOffset = circumference * (1 - holdProgress);
 
   useEffect(() => {
     return () => {
-      if (holdTimerRef.current) clearInterval(holdTimerRef.current);
+      if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
     };
   }, []);
 
   const sortedChips = preset.chips.slice().sort((a, b) => a.nominal - b.nominal);
 
   return (
-    <div className="preset-card">
-      <div
-        className="preset-card-header"
-        onMouseDown={startHold}
-        onMouseUp={releaseHold}
-        onMouseLeave={releaseHold}
-        onTouchStart={startHold}
-        onTouchEnd={releaseHold}
-        onTouchCancel={releaseHold}
-      >
+    <div
+      className="preset-card"
+      onMouseDown={startHold}
+      onMouseUp={releaseHold}
+      onMouseLeave={releaseHold}
+      onTouchStart={startHold}
+      onTouchEnd={releaseHold}
+      onTouchCancel={releaseHold}
+    >
+      <div className="preset-card-header">
         <div className="preset-card-title">
           <span className="preset-card-name">{preset.name}</span>
-          {holdProgress > 0 && (
-            <svg width="28" height="28" viewBox="0 0 24 24" className="hold-spinner-corner" style={{ transform: 'rotate(-90deg)' }}>
-              <circle cx="12" cy="12" r="10" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="2" />
-              <circle
-                cx="12" cy="12" r="10"
-                fill="none"
-                stroke="var(--accent-gold)"
-                strokeWidth="2"
-                strokeDasharray={circumference}
-                strokeDashoffset={dashOffset}
-                strokeLinecap="round"
-                className="hold-spinner-progress"
-              />
-            </svg>
-          )}
         </div>
         <div className="preset-card-chips">
           {sortedChips.map((chip, i) => {
