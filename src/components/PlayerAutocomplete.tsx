@@ -12,9 +12,10 @@ interface PlayerAutocompleteProps {
   onAddPlayer: (player: Player) => void;
   onRemovePlayer: (index: number) => void;
   maxPlayers?: number;
+  showHistoryBtn?: boolean;
 }
 
-export function PlayerAutocomplete({ players, onAddPlayer, onRemovePlayer, maxPlayers = 10 }: PlayerAutocompleteProps) {
+export function PlayerAutocomplete({ players, onAddPlayer, onRemovePlayer, maxPlayers = 10, showHistoryBtn = true }: PlayerAutocompleteProps) {
   const [input, setInput] = useState('');
   const [suggestions, setSuggestions] = useState<Player[]>([]);
   const [allPlayers, setAllPlayers] = useState<Player[]>([]);
@@ -169,7 +170,7 @@ export function PlayerAutocomplete({ players, onAddPlayer, onRemovePlayer, maxPl
           +
         </button>
         {/* Кнопка добавить из последней игры (иконка только) */}
-        {(window.lastGamePlayers?.length ?? 0) > 0 && (
+        {showHistoryBtn && (window.lastGamePlayers?.length ?? 0) > 0 && (
           <button
             className="btn btn-secondary btn-small autocomplete-history-btn"
             onClick={() => {

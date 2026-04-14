@@ -266,7 +266,7 @@ function ScheduleForm({
         <label className="form-label">
           Игроки <span className="badge">{players.length}/10</span>
         </label>
-        <PlayerAutocomplete players={players} onAddPlayer={onAddPlayer} onRemovePlayer={onRemovePlayer} />
+        <PlayerAutocomplete players={players} onAddPlayer={onAddPlayer} onRemovePlayer={onRemovePlayer} showHistoryBtn={false} />
         {players.length < 2 && (
           <p className="empty-text mt-8">Минимум 2 игрока</p>
         )}
