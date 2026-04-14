@@ -49,6 +49,8 @@ export function CreateGamePage() {
     loadGameHistory().then(games => {
       if (games.length > 0) {
         window.lastGamePlayers = games[0].players.map(p => ({ name: p.playerName, tgId: (p as any).tgId }));
+      } else {
+        window.lastGamePlayers = undefined;
       }
     });
 
