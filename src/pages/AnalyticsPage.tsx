@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
-import { loadGameHistory } from '../utils/storage';
+import { useNavigate } from 'react-router-dom';
+import { loadGameHistory, getUserProfile } from '../utils/storage';
 import { CompletedGame } from '../types';
 import { HeaderBack } from '../components/HeaderBack';
 import { useVerifiedPlayers } from '../utils/hooks';
@@ -15,15 +16,38 @@ interface PlayerStat {
 }
 
 export function AnalyticsPage() {
+  const navigate = useNavigate();
   const [history, setHistory] = useState<CompletedGame[]>([]);
   const [loading, setLoading] = useState(true);
   const { isVerified } = useVerifiedPlayers();
 
+  // Auth check
+  const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+  const currentTgId = tgUser ? String(tgUser.id) : null;
+  const [isBound, setIsBound] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
+
   useEffect(() => {
+    if (currentTgId) {
+      getUserProfile(currentTgId).then(profile => {
+        setIsBound(!!profile);
+        setAuthChecked(true);
+      });
+    } else {
+      setAuthChecked(true);
+    }
+  }, [currentTgId]);
+
+  useEffect(() => {
+    if (!authChecked) return;
+    if (!isBound) {
+      navigate('/');
+      return;
+    }
     loadGameHistory()
       .then(games => setHistory(games))
       .finally(() => setLoading(false));
-  }, []);
+  }, [authChecked, isBound, navigate]);
 
   const stats = useMemo(() => {
     const totalGames = history.length;

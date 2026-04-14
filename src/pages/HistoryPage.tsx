@@ -78,7 +78,7 @@ export function HistoryPage() {
         ))
       )}
 
-      {history.length > 0 && (
+      {history.length > 0 && isBound && (
         <div className="fixed-actions">
           <button
             className="btn btn-secondary"
