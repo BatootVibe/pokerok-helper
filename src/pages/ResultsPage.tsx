@@ -1,7 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useGame } from '../context/GameContext';
-import { addCompletedGame } from '../utils/storage';
+import { addCompletedGame, getUserProfile } from '../utils/storage';
 import { CompletedGame, GameResult } from '../types';
 import { HeaderBack } from '../components/HeaderBack';
 import { useVerifiedPlayers } from '../utils/hooks';
@@ -15,6 +15,17 @@ export function ResultsPage() {
   const results = location.state?.results as GameResult[] | undefined;
   const [activeTab, setActiveTab] = useState<'results' | 'debts'>('results');
   const { isVerified } = useVerifiedPlayers();
+
+  // Auth state
+  const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+  const currentTgId = tgUser ? String(tgUser.id) : null;
+  const [isBound, setIsBound] = useState(false);
+
+  useEffect(() => {
+    if (currentTgId) {
+      getUserProfile(currentTgId).then(profile => setIsBound(!!profile));
+    }
+  }, [currentTgId]);
 
   const transfers = useMemo(() => {
     if (!results || results.length === 0) return [];
@@ -35,18 +46,20 @@ export function ResultsPage() {
   const handleFinish = async () => {
     if (!results) return;
     try {
-      const completedGame: CompletedGame = {
-        id: currentGame.id,
-        date: currentGame.date,
-        finishedAt: new Date().toISOString(),
-        venue: currentGame.venue || 'Не указано',
-        players: results,
-        startingChips: currentGame.startingChips,
-        buyInRubles: currentGame.buyInRubles,
-        chipPriceRubles: currentGame.chipPriceRubles,
-      };
-
-      await addCompletedGame(completedGame);
+      if (isBound) {
+        // Привязанный игрок — сохраняем на сервер
+        const completedGame: CompletedGame = {
+          id: currentGame.id,
+          date: currentGame.date,
+          finishedAt: new Date().toISOString(),
+          venue: currentGame.venue || 'Не указано',
+          players: results,
+          startingChips: currentGame.startingChips,
+          buyInRubles: currentGame.buyInRubles,
+          chipPriceRubles: currentGame.chipPriceRubles,
+        };
+        await addCompletedGame(completedGame);
+      }
       finishGame();
       navigate('/');
     } catch (err) {
@@ -166,9 +179,15 @@ export function ResultsPage() {
       </div>
 
       <div className="fixed-actions">
-        <button className="btn btn-success" onClick={handleFinish}>
-          ✅ Завершить и сохранить
-        </button>
+        {isBound ? (
+          <button className="btn btn-success" onClick={handleFinish}>
+            ✅ Завершить и сохранить
+          </button>
+        ) : (
+          <button className="btn btn-danger" onClick={handleFinish}>
+            ✅ Завершить без сохранения
+          </button>
+        )}
       </div>
     </div>
   );
