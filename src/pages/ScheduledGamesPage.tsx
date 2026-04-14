@@ -33,7 +33,7 @@ export function ScheduledGamesPage() {
 
   // Auth state
   const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
-  const currentTgId = tgUser ? String(tgUser.id) : null;
+  const currentTgId = tgUser ? String(tgUser.id) : (import.meta.env.DEV ? 'test123' : null);
   const [isBound, setIsBound] = useState(false);
 
   useEffect(() => {

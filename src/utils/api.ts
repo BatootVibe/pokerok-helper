@@ -3,6 +3,16 @@ import { CompletedGame, ChipPreset, ScheduledGame } from '../types';
 const API_BASE = import.meta.env.VITE_API_URL || '';
 const API_TIMEOUT = 30000; // 30 секунд
 
+// Test mode: use fake tgId when running locally without Telegram WebApp
+const TEST_TG_ID = 'test123';
+function getTgId(): string | undefined {
+  const tgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+  if (tgId) return String(tgId);
+  // Fallback for local dev
+  if (import.meta.env.DEV) return TEST_TG_ID;
+  return undefined;
+}
+
 interface ApiError extends Error {
   status?: number;
   body?: unknown;
@@ -61,7 +71,7 @@ export function apiGetGames(): Promise<CompletedGame[]> {
 }
 
 export function apiSaveGame(game: CompletedGame): Promise<{ success: boolean }> {
-  const tgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+  const tgId = getTgId();
   return request('/api/games', {
     method: 'POST',
     body: JSON.stringify({ ...game, tgId }),
@@ -69,12 +79,12 @@ export function apiSaveGame(game: CompletedGame): Promise<{ success: boolean }> 
 }
 
 export function apiDeleteGame(id: string): Promise<{ success: boolean }> {
-  const tgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+  const tgId = getTgId();
   return request(`/api/games/${id}?tgId=${tgId}`, { method: 'DELETE' });
 }
 
 export function apiClearAllGames(): Promise<{ success: boolean }> {
-  const tgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+  const tgId = getTgId();
   return request(`/api/games?tgId=${tgId}`, { method: 'DELETE' });
 }
 
@@ -84,7 +94,7 @@ export function apiGetPresets(): Promise<ChipPreset[]> {
 }
 
 export function apiSavePreset(preset: ChipPreset): Promise<{ success: boolean }> {
-  const tgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+  const tgId = getTgId();
   return request('/api/presets', {
     method: 'POST',
     body: JSON.stringify({ ...preset, tgId }),
@@ -92,7 +102,7 @@ export function apiSavePreset(preset: ChipPreset): Promise<{ success: boolean }>
 }
 
 export function apiDeletePreset(id: string): Promise<{ success: boolean }> {
-  const tgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+  const tgId = getTgId();
   return request(`/api/presets/${id}?tgId=${tgId}`, { method: 'DELETE' });
 }
 
@@ -102,7 +112,7 @@ export function apiGetScheduled(): Promise<ScheduledGame[]> {
 }
 
 export function apiSaveScheduled(game: ScheduledGame): Promise<{ success: boolean }> {
-  const tgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+  const tgId = getTgId();
   return request('/api/scheduled', {
     method: 'POST',
     body: JSON.stringify({ ...game, tgId }),
@@ -110,7 +120,7 @@ export function apiSaveScheduled(game: ScheduledGame): Promise<{ success: boolea
 }
 
 export function apiDeleteScheduled(id: string): Promise<{ success: boolean }> {
-  const tgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+  const tgId = getTgId();
   return request(`/api/scheduled/${id}?tgId=${tgId}`, { method: 'DELETE' });
 }
 
