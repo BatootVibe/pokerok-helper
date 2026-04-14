@@ -153,6 +153,12 @@ body::before {
   margin-bottom: 12px;
   box-shadow: var(--card-shadow);
   border: var(--card-border);
+  transition: outline 0.15s ease, outline-offset 0.15s ease;
+}
+
+.card-highlight {
+  outline: 2px solid var(--accent-gold);
+  outline-offset: 2px;
 }
 
 .card-dashed {

@@ -21,6 +21,14 @@ export function CreateGamePage() {
   const [showPresetDropdown, setShowPresetDropdown] = useState(false);
   const appliedPresetRef = useRef<string | null>(null);
 
+  // Подсветка карточек при нажатии на disabled-кнопку
+  const [highlightCard, setHighlightCard] = useState<'preset' | 'players' | null>(null);
+
+  const triggerHighlight = (card: 'preset' | 'players') => {
+    setHighlightCard(card);
+    setTimeout(() => setHighlightCard(null), 800);
+  };
+
   // Локации
   const [venues, setVenues] = useState<string[]>([]);
   const [selectedVenue, setSelectedVenue] = useState('');
@@ -156,7 +164,7 @@ export function CreateGamePage() {
       <HeaderBack title="Новая игра" />
 
       {/* Выбор пресета (выпадающий список + кнопка Настроить) */}
-      <div className="card card-preset-selector">
+      <div className={`card card-preset-selector ${highlightCard === 'preset' ? 'card-highlight' : ''}`}>
         <div className="preset-selector-row">
           <label className="preset-selector-label">Пресет</label>
           <div className="preset-dropdown">
@@ -200,7 +208,7 @@ export function CreateGamePage() {
       </div>
 
       {/* Игроки с умным поиском */}
-      <div className="card">
+      <div className={`card ${highlightCard === 'players' ? 'card-highlight' : ''}`}>
         <div className="card-header-centered">
           <h3>Игроки</h3>
           <span className="badge">{players.length}/10</span>
@@ -286,7 +294,15 @@ export function CreateGamePage() {
       <div className="fixed-actions">
         <button
           className="btn btn-primary"
-          onClick={handleCreate}
+          onClick={() => {
+            if (!selectedPresetId) {
+              triggerHighlight('preset');
+            } else if (players.length < 2) {
+              triggerHighlight('players');
+            } else {
+              handleCreate();
+            }
+          }}
           disabled={!selectedPresetId || players.length < 2 || !startingChips || !buyInRubles}
         >
           {!selectedPresetId
