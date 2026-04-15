@@ -5,6 +5,7 @@ import crypto from 'crypto';
 import Database from 'better-sqlite3';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import 'dotenv/config';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const db = new Database(path.join(__dirname, 'poker.db'));
@@ -320,7 +321,7 @@ app.get('/api/games', (req, res) => {
   res.json(result);
 });
 
-app.post('/api/games', requireTelegramAuth, requireBound, strictLimiter, (req, res) => {
+app.post('/api/games', requireTelegramAuth, strictLimiter, (req, res) => {
   const { id, date, players, startingChips, buyInRubles, chipPriceRubles, finishedAt, venue } = req.body;
   const ownerUserId = req.userId;
 
@@ -367,7 +368,7 @@ app.post('/api/games', requireTelegramAuth, requireBound, strictLimiter, (req, r
   }
 });
 
-app.delete('/api/games/:id', requireTelegramAuth, requireBound, strictLimiter, requireGameParticipant, (req, res) => {
+app.delete('/api/games/:id', requireTelegramAuth, strictLimiter, requireGameParticipant, (req, res) => {
   const { id } = req.params;
   try {
     const tx = db.transaction(() => {
@@ -382,7 +383,7 @@ app.delete('/api/games/:id', requireTelegramAuth, requireBound, strictLimiter, r
   }
 });
 
-app.delete('/api/games', requireTelegramAuth, requireBound, strictLimiter, (req, res) => {
+app.delete('/api/games', requireTelegramAuth, strictLimiter, (req, res) => {
   const ownerUserId = req.userId;
   try {
     const tx = db.transaction(() => {
@@ -415,7 +416,7 @@ app.get('/api/presets', (req, res) => {
   res.json(result);
 });
 
-app.post('/api/presets', requireTelegramAuth, requireBound, strictLimiter, (req, res) => {
+app.post('/api/presets', requireTelegramAuth, strictLimiter, (req, res) => {
   const { id, name, chips } = req.body;
   const ownerUserId = req.userId;
 
@@ -437,7 +438,7 @@ app.post('/api/presets', requireTelegramAuth, requireBound, strictLimiter, (req,
   }
 });
 
-app.delete('/api/presets/:id', requireTelegramAuth, requireBound, strictLimiter, (req, res) => {
+app.delete('/api/presets/:id', requireTelegramAuth, strictLimiter, (req, res) => {
   try {
     db.prepare('DELETE FROM presets WHERE id = ?').run(req.params.id);
     res.json({ success: true });
@@ -483,7 +484,7 @@ app.post('/api/users', requireTelegramAuth, strictLimiter, (req, res) => {
 });
 
 // Удаление: только свой профиль
-app.delete('/api/users', requireTelegramAuth, requireBound, strictLimiter, (req, res) => {
+app.delete('/api/users', requireTelegramAuth, strictLimiter, (req, res) => {
   const userId = req.userId;
   try {
     db.prepare('DELETE FROM users WHERE id = ?').run(userId);
@@ -495,7 +496,7 @@ app.delete('/api/users', requireTelegramAuth, requireBound, strictLimiter, (req,
 });
 
 // Обновление имени: только свой профиль
-app.put('/api/users', requireTelegramAuth, requireBound, strictLimiter, (req, res) => {
+app.put('/api/users', requireTelegramAuth, strictLimiter, (req, res) => {
   const userId = req.userId;
   const { name } = req.body;
   if (!name || typeof name !== 'string' || name.trim().length < 1 || name.trim().length > 50) {
@@ -541,7 +542,7 @@ app.get('/api/venues', (req, res) => {
   }
 });
 
-app.post('/api/venues', requireTelegramAuth, requireBound, strictLimiter, (req, res) => {
+app.post('/api/venues', requireTelegramAuth, strictLimiter, (req, res) => {
   const { name } = req.body;
   if (!name || typeof name !== 'string' || name.trim().length < 1 || name.trim().length > 100) {
     return res.status(400).json({ error: 'Некорректное название локации' });
@@ -558,7 +559,7 @@ app.post('/api/venues', requireTelegramAuth, requireBound, strictLimiter, (req, 
   }
 });
 
-app.delete('/api/venues/:name', requireTelegramAuth, requireBound, strictLimiter, (req, res) => {
+app.delete('/api/venues/:name', requireTelegramAuth, strictLimiter, (req, res) => {
   try {
     db.prepare('DELETE FROM venues WHERE name = ?').run(decodeURIComponent(req.params.name));
     res.json({ success: true });
@@ -587,7 +588,7 @@ app.get('/api/scheduled', (req, res) => {
   }
 });
 
-app.post('/api/scheduled', requireTelegramAuth, requireBound, strictLimiter, (req, res) => {
+app.post('/api/scheduled', requireTelegramAuth, strictLimiter, (req, res) => {
   const { id, venue, scheduledAt, players, createdAt } = req.body;
   const ownerUserId = req.userId;
 
@@ -606,7 +607,7 @@ app.post('/api/scheduled', requireTelegramAuth, requireBound, strictLimiter, (re
   }
 });
 
-app.delete('/api/scheduled/:id', requireTelegramAuth, requireBound, strictLimiter, (req, res) => {
+app.delete('/api/scheduled/:id', requireTelegramAuth, strictLimiter, (req, res) => {
   try {
     db.prepare('DELETE FROM scheduled_games WHERE id = ?').run(req.params.id);
     res.json({ success: true });
