@@ -136,6 +136,7 @@ app.get('/api/games', (req, res) => {
       json_object(
         'playerId', r.player_id,
         'playerName', r.player_name,
+        'tgId', r.tg_id,
         'buyInQty', r.buy_in_qty,
         'rebuyQty', r.rebuy_qty,
         'wasChips', r.was_chips,

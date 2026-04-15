@@ -94,6 +94,7 @@ export function ChipCountPage() {
       return {
         playerId: player.id,
         playerName: player.name,
+        tgId: player.tgId,
         buyInQty,
         rebuyQty,
         wasChips,

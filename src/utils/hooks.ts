@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { apiGet } from './api';
+import { LOCAL_USER_PROFILE_KEY } from './constants';
 
 /** Хук для управления списком имён (добавление/удаление) */
 export function useNameList(initial: string[] = []) {
@@ -26,12 +27,13 @@ export function useNameList(initial: string[] = []) {
 
 /**
  * Хук для получения Map привязанных игроков (имя → tgId).
- * Загружает только с API (из БД). Если API недоступен — пустая Map.
+ * Загружает с API (из БД). Если API недоступен — fallback на localStorage.
  */
 export function useVerifiedPlayers() {
   const [verifiedMap, setVerifiedMap] = useState<Map<string, string>>(new Map());
 
   useEffect(() => {
+    // 1. Сначала пробуем API
     apiGet<{ name: string; tgId: string | null }[]>('/api/players')
       .then(players => {
         const map = new Map<string, string>();
@@ -43,8 +45,22 @@ export function useVerifiedPlayers() {
         setVerifiedMap(map);
       })
       .catch(() => {
-        // API недоступен — пустая Map, галочки не показываются
-        setVerifiedMap(new Map());
+        // 2. Fallback: загружаем из localStorage
+        const map = new Map<string, string>();
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith(LOCAL_USER_PROFILE_KEY)) {
+            try {
+              const profile = JSON.parse(localStorage.getItem(key) || '');
+              if (profile && profile.name && profile.tgId) {
+                map.set(profile.name.toLowerCase(), profile.tgId);
+              }
+            } catch {
+              // ignore
+            }
+          }
+        }
+        setVerifiedMap(map);
       });
   }, []);
 

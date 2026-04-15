@@ -67,6 +67,7 @@ export interface Game {
 export interface GameResult {
   playerId: string;
   playerName: string;
+  tgId?: string; // Telegram ID игрока на момент сохранения результата
   buyInQty: number; // количество бай-инов (всегда 1)
   rebuyQty: number; // количество ребай
   wasChips: number; // Было: стартовые × (buyInQty + rebuyQty)
