@@ -23,7 +23,7 @@ export function ResultsPage() {
 
   useEffect(() => {
     if (currentTgId) {
-      getUserProfile(currentTgId).then(profile => setIsBound(!!profile));
+      getUserProfile().then(profile => setIsBound(!!profile));
     }
   }, [currentTgId]);
 

@@ -29,7 +29,7 @@ export function AnalyticsPage() {
 
   useEffect(() => {
     if (currentTgId) {
-      getUserProfile(currentTgId).then(profile => {
+      getUserProfile().then(profile => {
         setIsBound(!!profile);
         setAuthChecked(true);
       });

@@ -25,6 +25,7 @@ interface TelegramUser {
 
 interface TelegramWebApp {
   WebApp: {
+    initData: string;
     initDataUnsafe: {
       user?: TelegramUser;
     };

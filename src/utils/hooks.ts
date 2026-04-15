@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { apiGet } from './api';
+import { LOCAL_USER_PROFILE_KEY } from './constants';
 
 /**
  * Хук для получения Map привязанных игроков (имя → userId).
