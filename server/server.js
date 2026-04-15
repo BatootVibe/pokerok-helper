@@ -85,11 +85,12 @@ app.use(express.json());
 
 // Middleware: проверка, что tgId привязан к профилю
 function requireBound(req, res, next) {
-  const tgId = req.body?.tgId || req.query?.tgId;
+  // tgId может быть в body, query или params (URL)
+  const tgId = req.body?.tgId || req.query?.tgId || req.params?.tgId;
   if (!tgId) return res.status(401).json({ error: 'Требуется привязка аккаунта' });
   const user = db.prepare('SELECT tg_id FROM users WHERE tg_id = ?').get(tgId);
   if (!user) return res.status(403).json({ error: 'Привяжите аккаунт в настройках, чтобы выполнять это действие' });
-  // Убираем tgId из body, чтобы не мешать валидации
+  // Убираем tgId из body, чтобы не мешать валидации (если он там есть)
   if (req.body && req.body.tgId) {
     const { tgId: _, ...rest } = req.body;
     req.body = rest;
