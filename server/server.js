@@ -282,7 +282,7 @@ app.get('/api/games', (req, res) => {
       json_object(
         'playerId', r.player_id,
         'playerName', r.player_name,
-        'tgId', r.tg_id,
+        'tgId', u.tg_id,
         'buyInQty', r.buy_in_qty,
         'rebuyQty', r.rebuy_qty,
         'wasChips', r.was_chips,
@@ -293,6 +293,7 @@ app.get('/api/games', (req, res) => {
     ) as players
     FROM games g
     JOIN game_results r ON g.id = r.game_id
+    LEFT JOIN users u ON r.user_id = u.id
     GROUP BY g.id
     ORDER BY g.finished_at DESC
   `).all();
