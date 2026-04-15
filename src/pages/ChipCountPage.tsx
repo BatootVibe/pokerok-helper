@@ -140,7 +140,7 @@ export function ChipCountPage() {
       ))}
 
       <div className="fixed-actions">
-        <button className="btn btn-primary" onClick={goResults}>
+        <button className="btn btn-success" onClick={goResults}>
           📊 Рассчитать
         </button>
       </div>

@@ -3,11 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { useGame } from '../context/GameContext';
 import { HeaderHome } from '../components/HeaderBack';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { PlayerAutocomplete, Player } from '../components/PlayerAutocomplete';
 
 export function GameTablePage() {
   const navigate = useNavigate();
   const { currentGame, addPlayer, incrementRebuy, finishGame } = useGame();
-  const [newPlayerName, setNewPlayerName] = useState('');
+  const [players, setPlayers] = useState<Player[]>([]);
   const [showConfirm, setShowConfirm] = useState(false);
 
   if (!currentGame) {
@@ -21,12 +22,11 @@ export function GameTablePage() {
     );
   }
 
-  const handleAddPlayer = () => {
-    const name = newPlayerName.trim();
-    const isDuplicate = currentGame.players.some(p => p.name.toLowerCase() === name.toLowerCase());
-    if (name && !isDuplicate && currentGame.players.length < 10) {
-      addPlayer({ name });
-      setNewPlayerName('');
+  const handleAddPlayer = (player: Player) => {
+    const isDuplicate = currentGame.players.some(p => p.name.toLowerCase() === player.name.toLowerCase());
+    if (!isDuplicate && currentGame.players.length < 10) {
+      addPlayer(player);
+      setPlayers([]);
     }
   };
 
@@ -79,17 +79,11 @@ export function GameTablePage() {
 
       {/* Добавить игрока */}
       <div className="card card-dashed">
-        <div className="add-player-form">
-          <input
-            className="input"
-            type="text"
-            placeholder="Имя нового игрока"
-            value={newPlayerName}
-            onChange={e => setNewPlayerName(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleAddPlayer()}
-          />
-          <button className="btn btn-primary btn-small" onClick={handleAddPlayer}>+</button>
-        </div>
+        <PlayerAutocomplete
+          players={players}
+          onAddPlayer={handleAddPlayer}
+          onRemovePlayer={() => {}}
+        />
       </div>
 
       <div className="fixed-actions">
