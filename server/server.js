@@ -42,10 +42,16 @@ db.exec(`
     spent_rubles REAL NOT NULL,
     FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE
   );
+`);
 
-  -- Добавляем tg_id если колонки нет (для старых БД)
-  ALTER TABLE game_results ADD COLUMN tg_id TEXT;
+// Добавляем tg_id если колонки нет (для старых БД)
+try {
+  db.exec('ALTER TABLE game_results ADD COLUMN tg_id TEXT;');
+} catch (e) {
+  // ignore if column already exists
+}
 
+db.exec(`
   CREATE TABLE IF NOT EXISTS presets (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
