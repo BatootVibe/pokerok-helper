@@ -489,17 +489,7 @@ app.post('/api/users', requireTelegramAuth, strictLimiter, (req, res) => {
 app.delete('/api/users', requireTelegramAuth, strictLimiter, (req, res) => {
   const userId = req.userId;
   try {
-    const tx = db.transaction(() => {
-      // 1. Обнуляем user_id в результатах игр (история сохраняется, но игрок становится "гостем")
-      db.prepare('UPDATE game_results SET user_id = NULL WHERE user_id = ?').run(userId);
-      // 2. Удаляем запланированные игры пользователя
-      db.prepare('DELETE FROM scheduled_games WHERE owner_user_id = ?').run(userId);
-      // 3. Удаляем пресеты пользователя
-      db.prepare('DELETE FROM presets WHERE owner_user_id = ?').run(userId);
-      // 4. Удаляем самого пользователя
-      db.prepare('DELETE FROM users WHERE id = ?').run(userId);
-    });
-    tx();
+    db.prepare('DELETE FROM users WHERE id = ?').run(userId);
     res.json({ success: true });
   } catch (dbErr) {
     console.error('Failed to delete user:', dbErr.message);
