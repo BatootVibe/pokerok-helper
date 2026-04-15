@@ -51,7 +51,7 @@ export function ChipCountPage() {
   }
 
   const handleChipChange = useCallback((playerId: string, chipIndex: number, value: string) => {
-    const num = parseInt(value) || 0;
+    const num = Math.max(0, parseInt(value) || 0);
     setChipInputs(prev => ({
       ...prev,
       [playerId]: {
@@ -94,7 +94,7 @@ export function ChipCountPage() {
       return {
         playerId: player.id,
         playerName: player.name,
-        tgId: player.tgId,
+        userId: player.userId,
         buyInQty,
         rebuyQty,
         wasChips,
@@ -117,7 +117,7 @@ export function ChipCountPage() {
       {currentGame.players.map(player => (
         <div key={player.id} className="card card-finish">
           <div className="card-header">
-            <h3 className={player.tgId ? 'verified-player' : ''}>
+            <h3 className={player.userId ? 'verified-player' : ''}>
               {player.name}
             </h3>
             <span className="text-muted text-sm">

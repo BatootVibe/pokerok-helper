@@ -12,32 +12,24 @@ export function SettingsPage() {
   const [showEditNameModal, setShowEditNameModal] = useState(false);
   const [bindName, setBindName] = useState('');
   const [bindError, setBindError] = useState('');
-  const [userProfile, setUserProfile] = useState<{ name: string; tgId: string } | null>(null);
-
-  // Получаем Telegram ID
-  const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
-  const currentTgId = tgUser ? String(tgUser.id) : null;
+  const [userProfile, setUserProfile] = useState<{ name: string } | null>(null);
 
   const [isBound, setIsBound] = useState(false);
 
   // Загружаем профиль при входе
   useEffect(() => {
-    if (currentTgId) {
-      getUserProfile(currentTgId).then(profile => {
-        setUserProfile(profile);
-        setIsBound(!!profile);
-      });
-    }
-  }, [currentTgId]);
+    getUserProfile().then(profile => {
+      setUserProfile(profile);
+      setIsBound(!!profile);
+    });
+  }, []);
 
   const handleBind = async () => {
-    if (!bindName.trim() || !currentTgId) return;
-
+    if (!bindName.trim()) return;
     setBindError('');
-    const result = await saveUserProfile({ name: bindName.trim(), tgId: currentTgId });
-
+    const result = await saveUserProfile({ name: bindName.trim() });
     if (result.success) {
-      setUserProfile({ name: bindName.trim(), tgId: currentTgId });
+      setUserProfile({ name: bindName.trim() });
       setBindName('');
       setShowBindModal(false);
     } else {
@@ -46,23 +38,21 @@ export function SettingsPage() {
   };
 
   const handleUnbind = async () => {
-    if (!currentTgId) return;
     try {
-      await deleteUserProfile(currentTgId);
+      await deleteUserProfile();
       setUserProfile(null);
       setShowUnbindConfirm(false);
-    } catch (err) {
-      console.error('Failed to unbind profile:', err);
+    } catch {
       alert('Не удалось отвязать аккаунт. Попробуйте ещё раз.');
     }
   };
 
   const handleUpdateName = async () => {
-    if (!bindName.trim() || !currentTgId) return;
+    if (!bindName.trim()) return;
     setBindError('');
-    const result = await updateUserProfile({ name: bindName.trim(), tgId: currentTgId });
+    const result = await updateUserProfile({ name: bindName.trim() });
     if (result.success) {
-      setUserProfile({ name: bindName.trim(), tgId: currentTgId });
+      setUserProfile({ name: bindName.trim() });
       setBindName('');
       setShowEditNameModal(false);
     } else {
@@ -70,19 +60,11 @@ export function SettingsPage() {
     }
   };
 
-  const handleResetApp = () => {
-    if (confirm('Сбросить все данные приложения? Это очистит кэш и вернёт настройки по умолчанию.')) {
-      localStorage.clear();
-      window.location.reload();
-    }
-  };
-
   const handleClear = useCallback(async () => {
     try {
       await clearGameHistory();
       setShowConfirm(false);
-    } catch (err) {
-      console.error('Failed to clear history:', err);
+    } catch {
       alert('Не удалось очистить историю на сервере.');
     }
   }, []);
@@ -99,13 +81,15 @@ export function SettingsPage() {
         <span className="settings-link-text">Открыть →</span>
       </div>
 
-      <div className="card settings-card settings-telegram" onClick={() => !userProfile && currentTgId && setShowBindModal(true)}>
+      <div
+        className="card settings-card settings-telegram"
+        onClick={() => !userProfile && setShowBindModal(true)}
+      >
         {userProfile ? (
           <>
             <h3 className="mb-4">👤 Профиль</h3>
             <div className="profile-info">
               <span className="profile-name">{userProfile.name}</span>
-              <span className="profile-id">ID: {userProfile.tgId.slice(-6)}</span>
             </div>
             <div className="mt-12" style={{ display: 'flex', gap: '8px' }}>
               <button
@@ -133,22 +117,16 @@ export function SettingsPage() {
           </>
         ) : (
           <>
-            <h3 className="mb-4">🔗 Привязка аккаунта Telegram</h3>
+            <h3 className="mb-4">🔗 Привязка аккаунта</h3>
             <p className="text-muted text-sm mb-8">
-              {currentTgId ? 'Привяжите аккаунт для синхронизации' : 'Откройте приложение в Telegram'}
+              Привяжите аккаунт для синхронизации
             </p>
-            <span className="settings-link-text">{currentTgId ? 'Привязать →' : 'Недоступно'}</span>
+            <span className="settings-link-text">Привязать →</span>
           </>
         )}
       </div>
 
       <div className="fixed-actions">
-        {/* TODO: remove after testing */}
-        {isBound && (
-          <button className="btn btn-warning" onClick={handleResetApp} style={{ marginBottom: '8px', width: '100%' }}>
-            🔄 Сбросить данные
-          </button>
-        )}
         {isBound && (
           <button className="btn btn-danger" onClick={() => setShowConfirm(true)}>
             🗑️ Очистить историю
@@ -169,7 +147,7 @@ export function SettingsPage() {
       {showUnbindConfirm && (
         <ConfirmModal
           title="🔓 Отвязать аккаунт?"
-          description="Ваше имя больше не будет привязано к Telegram. Другие игроки перестанут видеть вас в списке."
+          description="Ваше имя больше не будет привязано к Telegram."
           danger
           onConfirm={handleUnbind}
           onCancel={() => setShowUnbindConfirm(false)}

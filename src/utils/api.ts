@@ -3,9 +3,12 @@ import { CompletedGame, ChipPreset, ScheduledGame } from '../types';
 const API_BASE = import.meta.env.VITE_API_URL || '';
 const API_TIMEOUT = 30000; // 30 секунд
 
-function getTgId(): string | undefined {
-  const tgId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
-  return tgId ? String(tgId) : undefined;
+/**
+ * Получает initData от Telegram WebApp.
+ * Возвращает строку для отправки в заголовке x-telegram-init-data.
+ */
+function getInitData(): string | undefined {
+  return window.Telegram?.WebApp?.initData || undefined;
 }
 
 interface ApiError extends Error {
@@ -17,9 +20,15 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT);
 
+  const initData = getInitData();
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (initData) {
+    headers['x-telegram-init-data'] = initData;
+  }
+
   try {
     const res = await fetch(`${API_BASE}${path}`, {
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       signal: controller.signal,
       ...options,
     });
@@ -60,27 +69,35 @@ export function apiPost<T>(path: string, body: unknown): Promise<T> {
   });
 }
 
+export function apiPut<T>(path: string, body: unknown): Promise<T> {
+  return request<T>(path, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+}
+
+export function apiRequest<T>(path: string, options?: RequestInit): Promise<T> {
+  return request<T>(path, options);
+}
+
 // Games
 export function apiGetGames(): Promise<CompletedGame[]> {
   return request<CompletedGame[]>('/api/games');
 }
 
 export function apiSaveGame(game: CompletedGame): Promise<{ success: boolean }> {
-  const tgId = getTgId();
   return request('/api/games', {
     method: 'POST',
-    body: JSON.stringify({ ...game, tgId }),
+    body: JSON.stringify(game),
   });
 }
 
 export function apiDeleteGame(id: string): Promise<{ success: boolean }> {
-  const tgId = getTgId();
-  return request(`/api/games/${id}?tgId=${tgId}`, { method: 'DELETE' });
+  return request(`/api/games/${id}`, { method: 'DELETE' });
 }
 
 export function apiClearAllGames(): Promise<{ success: boolean }> {
-  const tgId = getTgId();
-  return request(`/api/games?tgId=${tgId}`, { method: 'DELETE' });
+  return request('/api/games', { method: 'DELETE' });
 }
 
 // Presets
@@ -89,16 +106,14 @@ export function apiGetPresets(): Promise<ChipPreset[]> {
 }
 
 export function apiSavePreset(preset: ChipPreset): Promise<{ success: boolean }> {
-  const tgId = getTgId();
   return request('/api/presets', {
     method: 'POST',
-    body: JSON.stringify({ ...preset, tgId }),
+    body: JSON.stringify(preset),
   });
 }
 
 export function apiDeletePreset(id: string): Promise<{ success: boolean }> {
-  const tgId = getTgId();
-  return request(`/api/presets/${id}?tgId=${tgId}`, { method: 'DELETE' });
+  return request(`/api/presets/${id}`, { method: 'DELETE' });
 }
 
 // Scheduled Games
@@ -107,16 +122,14 @@ export function apiGetScheduled(): Promise<ScheduledGame[]> {
 }
 
 export function apiSaveScheduled(game: ScheduledGame): Promise<{ success: boolean }> {
-  const tgId = getTgId();
   return request('/api/scheduled', {
     method: 'POST',
-    body: JSON.stringify({ ...game, tgId }),
+    body: JSON.stringify(game),
   });
 }
 
 export function apiDeleteScheduled(id: string): Promise<{ success: boolean }> {
-  const tgId = getTgId();
-  return request(`/api/scheduled/${id}?tgId=${tgId}`, { method: 'DELETE' });
+  return request(`/api/scheduled/${id}`, { method: 'DELETE' });
 }
 
 // Venues
@@ -138,16 +151,4 @@ export function apiDeleteVenue(name: string): Promise<{ success: boolean }> {
 // Health check
 export function apiHealthCheck(): Promise<{ status: string }> {
   return request('/api/health');
-}
-
-// Users
-export function apiDeleteUser(tgId: string): Promise<{ success: boolean }> {
-  return request(`/api/users/${tgId}`, { method: 'DELETE' });
-}
-
-export function apiUpdateUser(tgId: string, name: string): Promise<{ tgId: string; name: string }> {
-  return request(`/api/users/${tgId}`, {
-    method: 'PUT',
-    body: JSON.stringify({ name }),
-  });
 }

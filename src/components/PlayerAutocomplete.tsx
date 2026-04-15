@@ -4,7 +4,7 @@ import { getAllPlayers } from '../utils/storage';
 
 export interface Player {
   name: string;
-  tgId?: string;
+  userId?: number;
 }
 
 interface PlayerAutocompleteProps {
@@ -26,7 +26,7 @@ export function PlayerAutocomplete({ players, onAddPlayer, onRemovePlayer, maxPl
 
   // Загружаем всех привязанных пользователей при монтировании
   useEffect(() => {
-    getAllPlayers().then(list => setAllPlayers(list.map(p => ({ ...p, tgId: p.tgId || undefined }))));
+    getAllPlayers().then(list => setAllPlayers(list.map(p => ({ name: p.name, userId: p.id }))));
   }, []);
 
   // Закрытие при клике снаружи (mousedown)
@@ -96,7 +96,7 @@ export function PlayerAutocomplete({ players, onAddPlayer, onRemovePlayer, maxPl
 
     const query = input.trim().toLowerCase();
     // Защита: фильтруем только валидные объекты с name
-    const validAll = allPlayers.filter((p): p is { name: string; tgId?: string } => p && typeof p.name === 'string');
+    const validAll = allPlayers.filter((p): p is { name: string; userId?: number } => p && typeof p.name === 'string');
     const validPlayers = players.filter((p): p is Player => p && typeof p.name === 'string');
     const existingNames = validPlayers.map(p => p.name.toLowerCase());
 
@@ -138,7 +138,7 @@ export function PlayerAutocomplete({ players, onAddPlayer, onRemovePlayer, maxPl
         <div className="player-tags">
           {players.filter(p => p && p.name).map((p, i) => (
             <span key={`${p.name}-${i}`} className="player-tag">
-              <span className={p.tgId ? 'verified-player' : ''}>{p.name}</span>
+              <span className={p.userId ? 'verified-player' : ''}>{p.name}</span>
               <span className="player-tag-remove" onClick={() => onRemovePlayer(i)}>×</span>
             </span>
           ))}
@@ -201,7 +201,7 @@ export function PlayerAutocomplete({ players, onAddPlayer, onRemovePlayer, maxPl
       {showSuggestions && suggestions.length > 0 && createPortal(
         <ul className="autocomplete-list autocomplete-list-portal" style={dropdownStyle} ref={listRef}>
           {suggestions.map((s, idx) => {
-            const isLinked = !!s.tgId;
+            const isLinked = !!s.userId;
             return (
               <li
                 key={idx}

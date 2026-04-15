@@ -56,27 +56,23 @@ export function CreateGamePage() {
     // Загрузка последней игры для быстрого добавления игроков
     loadGameHistory().then(games => {
       if (games.length > 0) {
-        window.lastGamePlayers = games[0].players.map(p => ({ name: p.playerName, tgId: (p as any).tgId }));
+        window.lastGamePlayers = games[0].players.map(p => ({ name: p.playerName, userId: p.userId }));
       } else {
         window.lastGamePlayers = undefined;
       }
     });
 
     // Проверка запланированных игр (только для привязанных)
-    const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
-    const currentTgId = tgUser ? String(tgUser.id) : null;
-    if (currentTgId) {
-      getUserProfile(currentTgId).then(profile => {
-        if (profile) {
-          findNearbyScheduledGame().then(game => {
-            if (game) {
-              setNearbyGame({ id: game.id, venue: game.venue, players: game.players });
-              setShowNearbyPrompt(true);
-            }
-          });
-        }
-      });
-    }
+    getUserProfile().then(profile => {
+      if (profile) {
+        findNearbyScheduledGame().then(game => {
+          if (game) {
+            setNearbyGame({ id: game.id, venue: game.venue, players: game.players });
+            setShowNearbyPrompt(true);
+          }
+        });
+      }
+    });
   }, []);
 
   // Авто-выбор пресета если вернулись со страницы создания пресета
@@ -92,7 +88,6 @@ export function CreateGamePage() {
   const addPlayer = useCallback((player: Player) => {
     setPlayers(prev => {
       if (prev.length >= 10) return prev;
-      // Проверка на дубликаты
       if (prev.some(p => p.name.toLowerCase() === player.name.toLowerCase())) return prev;
       return [...prev, player];
     });
@@ -113,14 +108,14 @@ export function CreateGamePage() {
         }
         setSelectedVenue(nearbyGame.venue);
       }
-      // Загружаем привязанных игроков и подставляем tgId
+      // Загружаем привязанных игроков и подставляем userId
       const allPlayers = await getAllPlayers();
-      const playerMap = new Map(allPlayers.map(p => [p.name.toLowerCase(), { name: p.name, tgId: p.tgId || undefined }]));
-      const playersWithTgId = nearbyGame.players.map(name => {
+      const playerMap = new Map(allPlayers.map(p => [p.name.toLowerCase(), { name: p.name, userId: p.id }]));
+      const playersWithUserId = nearbyGame.players.map(name => {
         const linked = playerMap.get(name.toLowerCase());
-        return linked ? { name: linked.name, tgId: linked.tgId } : { name };
+        return linked || { name };
       });
-      setPlayers(playersWithTgId);
+      setPlayers(playersWithUserId);
     }
     setShowNearbyPrompt(false);
   }, [nearbyGame]);

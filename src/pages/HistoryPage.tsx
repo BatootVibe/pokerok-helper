@@ -192,8 +192,8 @@ function GameEntry({ game, isExpanded, onToggle, onDelete, isVerified, isBound }
 function PlayerResult({ player, isVerified }: { player: CompletedGame['players'][number]; isVerified: boolean }) {
   const isZero = player.becameChips === 0;
   const displayRubles = isZero ? -player.spentRubles : player.rubles;
-  const isPositive = player.rubles > player.spentRubles;
   const diff = player.rubles - player.spentRubles;
+  const isPositive = displayRubles > 0;
   const rubleClass = isPositive ? 'result-positive' : 'result-negative';
 
   return (

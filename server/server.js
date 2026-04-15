@@ -1,5 +1,7 @@
 import express from 'express';
 import cors from 'cors';
+import rateLimit from 'express-rate-limit';
+import crypto from 'crypto';
 import Database from 'better-sqlite3';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -7,70 +9,66 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const db = new Database(path.join(__dirname, 'poker.db'));
 
-// Настройка БД
+// Включаем WAL mode для лучшей конкурентности
+db.pragma('journal_mode = WAL');
+
+// === Настройка БД ===
+
 db.exec(`
+  CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tg_id TEXT NOT NULL UNIQUE,
+    player_name TEXT
+  );
+
   CREATE TABLE IF NOT EXISTS games (
     id TEXT PRIMARY KEY,
     date TEXT NOT NULL,
     finished_at TEXT NOT NULL DEFAULT '',
     venue TEXT NOT NULL DEFAULT '',
+    owner_user_id INTEGER,
     starting_chips INTEGER NOT NULL,
     buy_in_rubles REAL NOT NULL,
-    chip_price_rubles REAL NOT NULL
+    chip_price_rubles REAL NOT NULL,
+    FOREIGN KEY (owner_user_id) REFERENCES users(id)
   );
-`);
 
-// Добавляем finished_at если колонки нет (для старых БД)
-try {
-  db.exec(`ALTER TABLE games ADD COLUMN finished_at TEXT NOT NULL DEFAULT ''`);
-} catch (e) {
-  // Column already exists — ignore
-}
-
-db.exec(`
   CREATE TABLE IF NOT EXISTS game_results (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     game_id TEXT NOT NULL,
     player_id TEXT NOT NULL,
     player_name TEXT NOT NULL,
-    tg_id TEXT,
+    user_id INTEGER,
     buy_in_qty INTEGER NOT NULL DEFAULT 1,
     rebuy_qty INTEGER NOT NULL DEFAULT 0,
     was_chips INTEGER NOT NULL,
     became_chips INTEGER NOT NULL,
     rubles REAL NOT NULL,
     spent_rubles REAL NOT NULL,
-    FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE
+    FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id)
   );
-`);
 
-// Добавляем tg_id если колонки нет (для старых БД)
-try {
-  db.exec('ALTER TABLE game_results ADD COLUMN tg_id TEXT;');
-} catch (e) {
-  // ignore if column already exists
-}
-
-db.exec(`
   CREATE TABLE IF NOT EXISTS presets (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
-    chips TEXT NOT NULL
+    chips TEXT NOT NULL,
+    owner_user_id INTEGER,
+    FOREIGN KEY (owner_user_id) REFERENCES users(id)
   );
 
   CREATE INDEX IF NOT EXISTS idx_results_game ON game_results(game_id);
+  CREATE INDEX IF NOT EXISTS idx_results_user ON game_results(user_id);
+  CREATE INDEX IF NOT EXISTS idx_games_owner ON games(owner_user_id);
 
   CREATE TABLE IF NOT EXISTS scheduled_games (
     id TEXT PRIMARY KEY,
     venue TEXT NOT NULL,
     scheduled_at TEXT NOT NULL,
     players TEXT NOT NULL,
-    created_at TEXT NOT NULL
-  );
-
-  CREATE TABLE IF NOT EXISTS users (
-    tg_id TEXT PRIMARY KEY,
-    player_name TEXT NOT NULL UNIQUE
+    created_at TEXT NOT NULL,
+    owner_user_id INTEGER,
+    FOREIGN KEY (owner_user_id) REFERENCES users(id)
   );
 
   CREATE TABLE IF NOT EXISTS venues (
@@ -79,35 +77,185 @@ db.exec(`
   );
 `);
 
+// Миграции для старых БД
+try { db.exec('ALTER TABLE games ADD COLUMN owner_user_id INTEGER;'); } catch { /* already exists */ }
+try { db.exec('ALTER TABLE presets ADD COLUMN owner_user_id INTEGER;'); } catch { /* already exists */ }
+try { db.exec('ALTER TABLE scheduled_games ADD COLUMN owner_user_id INTEGER;'); } catch { /* already exists */ }
+try { db.exec('ALTER TABLE game_results ADD COLUMN user_id INTEGER;'); } catch { /* already exists */ }
+try { db.exec('CREATE INDEX IF NOT EXISTS idx_results_user ON game_results(user_id);'); } catch { /* already exists */ }
+
 const app = express();
 
-// CORS — ограничиваем localhost
+// === CORS: localhost + продакшен домены из окружения ===
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://127.0.0.1:5173',
+  ...(process.env.ALLOWED_ORIGINS || '').split(',').filter(Boolean),
+];
+
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173'],
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('CORS blocked'));
+    }
+  },
 }));
-app.use(express.json());
 
-// === Auth Middleware ===
+app.use(express.json({ limit: '1mb' }));
 
-// Middleware: проверка, что tgId привязан к профилю
-function requireBound(req, res, next) {
-  // tgId может быть в body, query или params (URL)
-  const tgId = req.body?.tgId || req.query?.tgId || req.params?.tgId;
-  if (!tgId) return res.status(401).json({ error: 'Требуется привязка аккаунта' });
-  const user = db.prepare('SELECT tg_id FROM users WHERE tg_id = ?').get(tgId);
-  if (!user) return res.status(403).json({ error: 'Привяжите аккаунт в настройках, чтобы выполнять это действие' });
-  // Убираем tgId из body, чтобы не мешать валидации (если он там есть)
-  if (req.body && req.body.tgId) {
-    const { tgId: _, ...rest } = req.body;
+// === Rate Limiting ===
+
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 минута
+  max: 120, // макс 120 запросов в минуту
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Слишком много запросов. Подождите минуту.' },
+});
+
+const strictLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20, // для мутаций — строже
+  message: { error: 'Слишком много запросов. Подождите минуту.' },
+});
+
+app.use('/api/', apiLimiter);
+
+// === Telegram WebApp Signature Verification ===
+
+/**
+ * Проверяет подпись initData от Telegram WebApp.
+ * Возвращает распарсенные данные или null если подпись невалидна.
+ * Использует constant-time сравнение для защиты от timing-атак.
+ */
+function verifyTelegramInitData(initData, botToken) {
+  if (!initData || !botToken) return null;
+
+  const params = new URLSearchParams(initData);
+  const hash = params.get('hash');
+  if (!hash) return null;
+
+  params.delete('hash');
+
+  const dataCheckString = Array.from(params.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, value]) => `${key}=${value}`)
+    .join('\n');
+
+  const secretKey = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
+  const calculatedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
+
+  // Constant-time comparison для защиты от timing-атак
+  const hashBuf = Buffer.from(hash, 'hex');
+  const calcBuf = Buffer.from(calculatedHash, 'hex');
+  if (hashBuf.length !== calcBuf.length || !crypto.timingSafeEqual(hashBuf, calcBuf)) {
+    return null;
+  }
+
+  const data = {};
+  for (const [key, value] of params) {
+    try {
+      data[key] = JSON.parse(value);
+    } catch {
+      data[key] = value;
+    }
+  }
+  return data;
+}
+
+/**
+ * Middleware: проверяет подпись Telegram WebApp и извлекает user_id.
+ * Без TELEGRAM_BOT_TOKEN — все запросы заблокированы (500).
+ * tgId из body/query НИКОГДА не принимается.
+ */
+function requireTelegramAuth(req, res, next) {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+
+  if (!botToken) {
+    return res.status(500).json({
+      error: 'Сервер не настроен. Обратитесь к администратору (TELEGRAM_BOT_TOKEN не установлен).',
+    });
+  }
+
+  const initData = req.headers['x-telegram-init-data'] || req.body?._initData;
+  const verified = verifyTelegramInitData(initData, botToken);
+
+  if (!verified || !verified.user?.id) {
+    return res.status(401).json({ error: 'Невалидная подпись Telegram. Обновите приложение.' });
+  }
+
+  const tgId = String(verified.user.id);
+
+  // Находим или создаём пользователя, получаем внутренний user_id
+  let userRow = db.prepare('SELECT id, tg_id, player_name FROM users WHERE tg_id = ?').get(tgId);
+  if (!userRow) {
+    // Новый пользователь — создаём запись
+    const defaultName = verified.user.username
+      || verified.user.first_name
+      || `user_${tgId.slice(-6)}`;
+    try {
+      const result = db.prepare('INSERT INTO users (tg_id, player_name) VALUES (?, ?)').run(tgId, defaultName);
+      userRow = { id: result.lastInsertRowid, tg_id: tgId, player_name: defaultName };
+    } catch (err) {
+      // Race condition: другой запрос уже создал пользователя
+      if (err.message.includes('UNIQUE')) {
+        userRow = db.prepare('SELECT id, tg_id, player_name FROM users WHERE tg_id = ?').get(tgId);
+      } else {
+        return res.status(500).json({ error: 'Ошибка создания профиля' });
+      }
+    }
+  }
+
+  req.userId = userRow.id;
+  req.tgId = userRow.tg_id;
+  req.playerName = userRow.player_name;
+
+  // Убираем служебные поля из body
+  if (req.body) {
+    const { _initData, tgId: _, ...rest } = req.body;
     req.body = rest;
   }
+
+  next();
+}
+
+/**
+ * Middleware: проверяет, что пользователь привязан (заполнил имя).
+ */
+function requireBound(req, res, next) {
+  if (!req.userId) return res.status(401).json({ error: 'Требуется авторизация' });
+
+  const user = db.prepare('SELECT id, player_name FROM users WHERE id = ?').get(req.userId);
+  if (!user || !user.player_name) {
+    return res.status(403).json({ error: 'Привяжите аккаунт в настройках, чтобы выполнять это действие' });
+  }
+
+  next();
+}
+
+/**
+ * Middleware: проверяет, что привязанный игрок участвовал в игре.
+ * Разрешает удаление игры только участникам.
+ */
+function requireGameParticipant(req, res, next) {
+  const userId = req.userId;
+  const gameId = req.params.id;
+
+  const participant = db.prepare(
+    'SELECT 1 FROM game_results WHERE game_id = ? AND user_id = ? LIMIT 1'
+  ).get(gameId, userId);
+
+  if (!participant) return res.status(403).json({ error: 'Только участник игры может выполнять это действие' });
   next();
 }
 
 // === Validation helpers ===
 
-function validateString(val, name, minLen = 1) {
-  if (typeof val !== 'string' || val.trim().length < minLen) {
+function validateString(val, name, minLen = 1, maxLen = 100) {
+  if (typeof val !== 'string' || val.trim().length < minLen || val.trim().length > maxLen) {
     return `Invalid or missing '${name}'`;
   }
   return null;
@@ -129,7 +277,6 @@ function validateArray(val, name) {
 
 // ===== ИГРЫ =====
 
-// Получить все завершённые игры
 app.get('/api/games', (req, res) => {
   const games = db.prepare(`
     SELECT g.*, json_group_array(
@@ -173,9 +320,9 @@ app.get('/api/games', (req, res) => {
   res.json(result);
 });
 
-// Сохранить завершённую игру
-app.post('/api/games', requireBound, (req, res) => {
+app.post('/api/games', requireTelegramAuth, requireBound, strictLimiter, (req, res) => {
   const { id, date, players, startingChips, buyInRubles, chipPriceRubles, finishedAt, venue } = req.body;
+  const ownerUserId = req.userId;
 
   const err = validateString(id, 'id')
     || validateString(date, 'date')
@@ -184,9 +331,7 @@ app.post('/api/games', requireBound, (req, res) => {
     || validateNumber(buyInRubles, 'buyInRubles', 0)
     || validateNumber(chipPriceRubles, 'chipPriceRubles', 0);
 
-  if (err) {
-    return res.status(400).json({ error: err });
-  }
+  if (err) return res.status(400).json({ error: err });
 
   for (const p of players) {
     const playerErr = validateString(p.playerId, 'playerId')
@@ -197,171 +342,209 @@ app.post('/api/games', requireBound, (req, res) => {
       || validateNumber(p.becameChips, 'becameChips', 0)
       || validateNumber(p.rubles, 'rubles')
       || validateNumber(p.spentRubles, 'spentRubles', 0);
-    if (playerErr) {
-      return res.status(400).json({ error: playerErr });
-    }
+    if (playerErr) return res.status(400).json({ error: playerErr });
   }
 
   const insertGame = db.prepare(
-    'INSERT OR REPLACE INTO games (id, date, finished_at, venue, starting_chips, buy_in_rubles, chip_price_rubles) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    'INSERT OR REPLACE INTO games (id, date, finished_at, venue, owner_user_id, starting_chips, buy_in_rubles, chip_price_rubles) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
   );
   const insertResult = db.prepare(
-    'INSERT INTO game_results (game_id, player_id, player_name, tg_id, buy_in_qty, rebuy_qty, was_chips, became_chips, rubles, spent_rubles) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    'INSERT INTO game_results (game_id, player_id, player_name, user_id, buy_in_qty, rebuy_qty, was_chips, became_chips, rubles, spent_rubles) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
   );
 
-  const tx = db.transaction(() => {
-    insertGame.run(id, date, finishedAt || new Date().toISOString(), venue || '', startingChips, buyInRubles, chipPriceRubles);
-    for (const p of players) {
-      insertResult.run(
-        id,
-        p.playerId,
-        p.playerName,
-        p.tgId || null,
-        p.buyInQty,
-        p.rebuyQty,
-        p.wasChips,
-        p.becameChips,
-        p.rubles,
-        p.spentRubles
-      );
-    }
-  });
-
-  tx();
-  res.json({ success: true });
+  try {
+    const tx = db.transaction(() => {
+      insertGame.run(id, date, finishedAt || new Date().toISOString(), venue || '', ownerUserId, startingChips, buyInRubles, chipPriceRubles);
+      for (const p of players) {
+        insertResult.run(id, p.playerId, p.playerName, p.userId || null, p.buyInQty, p.rebuyQty, p.wasChips, p.becameChips, p.rubles, p.spentRubles);
+      }
+    });
+    tx();
+    res.json({ success: true });
+  } catch (dbErr) {
+    console.error('Failed to save game:', dbErr.message);
+    res.status(500).json({ error: 'Ошибка сохранения игры' });
+  }
 });
 
-// Удалить игру
-app.delete('/api/games/:id', requireBound, (req, res) => {
+app.delete('/api/games/:id', requireTelegramAuth, requireBound, strictLimiter, requireGameParticipant, (req, res) => {
   const { id } = req.params;
-  const tx = db.transaction(() => {
-    db.prepare('DELETE FROM game_results WHERE game_id = ?').run(id);
-    db.prepare('DELETE FROM games WHERE id = ?').run(id);
-  });
-  tx();
-  res.json({ success: true });
+  try {
+    const tx = db.transaction(() => {
+      db.prepare('DELETE FROM game_results WHERE game_id = ?').run(id);
+      db.prepare('DELETE FROM games WHERE id = ?').run(id);
+    });
+    tx();
+    res.json({ success: true });
+  } catch (dbErr) {
+    console.error('Failed to delete game:', dbErr.message);
+    res.status(500).json({ error: 'Ошибка удаления игры' });
+  }
 });
 
-// Очистить всю историю
-app.delete('/api/games', requireBound, (req, res) => {
-  db.exec('DELETE FROM game_results; DELETE FROM games;');
-  res.json({ success: true });
+app.delete('/api/games', requireTelegramAuth, requireBound, strictLimiter, (req, res) => {
+  const ownerUserId = req.userId;
+  try {
+    const tx = db.transaction(() => {
+      const gameIds = db.prepare('SELECT id FROM games WHERE owner_user_id = ?').all(ownerUserId).map(g => g.id);
+      if (gameIds.length > 0) {
+        const placeholders = gameIds.map(() => '?').join(',');
+        db.prepare(`DELETE FROM game_results WHERE game_id IN (${placeholders})`).run(...gameIds);
+        db.prepare(`DELETE FROM games WHERE id IN (${placeholders})`).run(...gameIds);
+      }
+    });
+    tx();
+    res.json({ success: true });
+  } catch (dbErr) {
+    console.error('Failed to clear games:', dbErr.message);
+    res.status(500).json({ error: 'Ошибка очистки истории' });
+  }
 });
 
 // ===== ПРЕСЕТЫ =====
 
 app.get('/api/presets', (req, res) => {
   const presets = db.prepare('SELECT id, name, chips FROM presets').all();
-  const result = presets.map(p => ({
-    id: p.id,
-    name: p.name,
-    chips: JSON.parse(p.chips),
-  }));
+  const result = presets.map(p => {
+    try {
+      return { id: p.id, name: p.name, chips: JSON.parse(p.chips) };
+    } catch {
+      return { id: p.id, name: p.name, chips: [] };
+    }
+  });
   res.json(result);
 });
 
-app.post('/api/presets', requireBound, (req, res) => {
+app.post('/api/presets', requireTelegramAuth, requireBound, strictLimiter, (req, res) => {
   const { id, name, chips } = req.body;
+  const ownerUserId = req.userId;
 
-  const err = validateString(id, 'id')
-    || validateString(name, 'name')
-    || validateArray(chips, 'chips');
-
-  if (err) {
-    return res.status(400).json({ error: err });
-  }
+  const err = validateString(id, 'id') || validateString(name, 'name', 1, 50) || validateArray(chips, 'chips');
+  if (err) return res.status(400).json({ error: err });
 
   for (const chip of chips) {
-    const chipErr = validateString(chip.color, 'color')
-      || validateNumber(chip.nominal, 'nominal', 0);
-    if (chipErr) {
-      return res.status(400).json({ error: chipErr });
-    }
+    const chipErr = validateString(chip.color, 'color') || validateNumber(chip.nominal, 'nominal', 0);
+    if (chipErr) return res.status(400).json({ error: chipErr });
   }
 
-  db.prepare('INSERT OR REPLACE INTO presets (id, name, chips) VALUES (?, ?, ?)')
-    .run(id, name, JSON.stringify(chips));
-  res.json({ success: true });
+  try {
+    db.prepare('INSERT OR REPLACE INTO presets (id, name, chips, owner_user_id) VALUES (?, ?, ?, ?)')
+      .run(id, name, JSON.stringify(chips), ownerUserId);
+    res.json({ success: true });
+  } catch (dbErr) {
+    console.error('Failed to save preset:', dbErr.message);
+    res.status(500).json({ error: 'Ошибка сохранения пресета' });
+  }
 });
 
-app.delete('/api/presets/:id', requireBound, (req, res) => {
-  db.prepare('DELETE FROM presets WHERE id = ?').run(req.params.id);
-  res.json({ success: true });
+app.delete('/api/presets/:id', requireTelegramAuth, requireBound, strictLimiter, (req, res) => {
+  try {
+    db.prepare('DELETE FROM presets WHERE id = ?').run(req.params.id);
+    res.json({ success: true });
+  } catch (dbErr) {
+    console.error('Failed to delete preset:', dbErr.message);
+    res.status(500).json({ error: 'Ошибка удаления пресета' });
+  }
 });
 
-// ===== HEALTH =====
-// === Users API ===
+// ===== USERS =====
 
-app.get('/api/users/:tgId', (req, res) => {
-  const user = db.prepare('SELECT tg_id as tgId, player_name as name FROM users WHERE tg_id = ?').get(req.params.tgId);
-  res.json(user || null);
+// Профиль текущего пользователя (определяется из подписи)
+app.get('/api/users/me', requireTelegramAuth, (req, res) => {
+  try {
+    const user = db.prepare('SELECT player_name as name FROM users WHERE id = ?').get(req.userId);
+    res.json(user || null);
+  } catch {
+    res.json(null);
+  }
 });
 
-app.post('/api/users', (req, res) => {
-  const { tgId, name } = req.body;
-  if (!tgId || !name) return res.status(400).json({ error: 'tgId and name required' });
+// Привязка: сервер сам определяет tgId из подписи, клиент НЕ передаёт tgId
+app.post('/api/users', requireTelegramAuth, strictLimiter, (req, res) => {
+  const userId = req.userId;
+  const { name } = req.body;
+  if (!name || typeof name !== 'string' || name.trim().length < 1 || name.trim().length > 50) {
+    return res.status(400).json({ error: 'Имя должно быть от 1 до 50 символов' });
+  }
+  const sanitizedName = name.trim();
 
-  // Проверяем, не занято ли имя другим пользователем
-  const existingUser = db.prepare('SELECT tg_id FROM users WHERE player_name = ? AND tg_id != ?').get(name, tgId);
+  const existingUser = db.prepare('SELECT id FROM users WHERE player_name = ? AND id != ?').get(sanitizedName, userId);
   if (existingUser) {
     return res.status(409).json({ error: 'Это имя уже занято другим игроком' });
   }
 
   try {
-    db.prepare('INSERT OR REPLACE INTO users (tg_id, player_name) VALUES (?, ?)').run(tgId, name);
-    res.json({ tgId, name });
+    db.prepare('UPDATE users SET player_name = ? WHERE id = ?').run(sanitizedName, userId);
+    res.json({ name: sanitizedName });
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    console.error('Failed to save user:', err.message);
+    res.status(400).json({ error: 'Ошибка сохранения профиля' });
   }
 });
 
-app.delete('/api/users/:tgId', (req, res) => {
-  const { tgId } = req.params;
-  db.prepare('DELETE FROM users WHERE tg_id = ?').run(tgId);
-  res.json({ success: true });
+// Удаление: только свой профиль
+app.delete('/api/users', requireTelegramAuth, requireBound, strictLimiter, (req, res) => {
+  const userId = req.userId;
+  try {
+    db.prepare('DELETE FROM users WHERE id = ?').run(userId);
+    res.json({ success: true });
+  } catch (dbErr) {
+    console.error('Failed to delete user:', dbErr.message);
+    res.status(500).json({ error: 'Ошибка удаления профиля' });
+  }
 });
 
-app.put('/api/users/:tgId', requireBound, (req, res) => {
-  const { tgId } = req.params;
+// Обновление имени: только свой профиль
+app.put('/api/users', requireTelegramAuth, requireBound, strictLimiter, (req, res) => {
+  const userId = req.userId;
   const { name } = req.body;
-  if (!name) return res.status(400).json({ error: 'Name is required' });
+  if (!name || typeof name !== 'string' || name.trim().length < 1 || name.trim().length > 50) {
+    return res.status(400).json({ error: 'Имя должно быть от 1 до 50 символов' });
+  }
+  const sanitizedName = name.trim();
 
-  // Проверяем, не занято ли имя другим пользователем
-  const existingUser = db.prepare('SELECT tg_id FROM users WHERE player_name = ? AND tg_id != ?').get(name, tgId);
+  const existingUser = db.prepare('SELECT id FROM users WHERE player_name = ? AND id != ?').get(sanitizedName, userId);
   if (existingUser) {
     return res.status(409).json({ error: 'Это имя уже занято другим игроком' });
   }
 
   try {
     const tx = db.transaction(() => {
-      // Обновляем имя в профиле
-      db.prepare('UPDATE users SET player_name = ? WHERE tg_id = ?').run(name, tgId);
-      // Обновляем имя во всех играх этого пользователя
-      db.prepare("UPDATE game_results SET player_name = ? WHERE tg_id = ?").run(name, tgId);
+      db.prepare('UPDATE users SET player_name = ? WHERE id = ?').run(sanitizedName, userId);
+      db.prepare('UPDATE game_results SET player_name = ? WHERE user_id = ?').run(sanitizedName, userId);
     });
     tx();
-    res.json({ tgId, name });
+    res.json({ name: sanitizedName });
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    console.error('Failed to update user:', err.message);
+    res.status(400).json({ error: 'Ошибка обновления профиля' });
   }
 });
 
 app.get('/api/players', (req, res) => {
-  const players = db.prepare('SELECT player_name as name, tg_id as tgId FROM users').all();
-  res.json(players);
+  try {
+    const players = db.prepare('SELECT id, player_name as name FROM users WHERE player_name IS NOT NULL').all();
+    res.json(players);
+  } catch {
+    res.json([]);
+  }
 });
 
 // ===== VENUES =====
 
 app.get('/api/venues', (req, res) => {
-  const venues = db.prepare('SELECT name FROM venues ORDER BY id DESC').all();
-  res.json(venues.map(v => v.name));
+  try {
+    const venues = db.prepare('SELECT name FROM venues ORDER BY id DESC').all();
+    res.json(venues.map(v => v.name));
+  } catch {
+    res.json([]);
+  }
 });
 
-app.post('/api/venues', (req, res) => {
+app.post('/api/venues', requireTelegramAuth, requireBound, strictLimiter, (req, res) => {
   const { name } = req.body;
-  if (!name || typeof name !== 'string') {
-    return res.status(400).json({ error: 'Invalid venue name' });
+  if (!name || typeof name !== 'string' || name.trim().length < 1 || name.trim().length > 100) {
+    return res.status(400).json({ error: 'Некорректное название локации' });
   }
   try {
     db.prepare('INSERT INTO venues (name) VALUES (?)').run(name.trim());
@@ -370,13 +553,19 @@ app.post('/api/venues', (req, res) => {
     if (err.message.includes('UNIQUE')) {
       return res.status(409).json({ error: 'Локация уже существует' });
     }
-    res.status(400).json({ error: err.message });
+    console.error('Failed to save venue:', err.message);
+    res.status(500).json({ error: 'Ошибка сохранения локации' });
   }
 });
 
-app.delete('/api/venues/:name', (req, res) => {
-  db.prepare('DELETE FROM venues WHERE name = ?').run(decodeURIComponent(req.params.name));
-  res.json({ success: true });
+app.delete('/api/venues/:name', requireTelegramAuth, requireBound, strictLimiter, (req, res) => {
+  try {
+    db.prepare('DELETE FROM venues WHERE name = ?').run(decodeURIComponent(req.params.name));
+    res.json({ success: true });
+  } catch (dbErr) {
+    console.error('Failed to delete venue:', dbErr.message);
+    res.status(500).json({ error: 'Ошибка удаления локации' });
+  }
 });
 
 app.get('/api/health', (req, res) => {
@@ -386,57 +575,63 @@ app.get('/api/health', (req, res) => {
 // ===== SCHEDULED GAMES =====
 
 app.get('/api/scheduled', (req, res) => {
-  const games = db.prepare('SELECT * FROM scheduled_games ORDER BY scheduled_at DESC').all();
-  res.json(games.map(g => ({
-    id: g.id,
-    venue: g.venue,
-    scheduledAt: g.scheduled_at,
-    players: JSON.parse(g.players),
-    createdAt: g.created_at,
-  })));
+  try {
+    const games = db.prepare('SELECT * FROM scheduled_games ORDER BY scheduled_at DESC').all();
+    res.json(games.map(g => {
+      let players;
+      try { players = JSON.parse(g.players); } catch { players = []; }
+      return { id: g.id, venue: g.venue, scheduledAt: g.scheduled_at, players, createdAt: g.created_at };
+    }));
+  } catch {
+    res.json([]);
+  }
 });
 
-app.post('/api/scheduled', requireBound, (req, res) => {
+app.post('/api/scheduled', requireTelegramAuth, requireBound, strictLimiter, (req, res) => {
   const { id, venue, scheduledAt, players, createdAt } = req.body;
+  const ownerUserId = req.userId;
 
-  const err = validateString(id, 'id')
-    || validateString(venue, 'venue')
-    || validateString(scheduledAt, 'scheduledAt')
-    || validateArray(players, 'players');
-
-  if (err) {
-    return res.status(400).json({ error: err });
-  }
+  const err = validateString(id, 'id') || validateString(venue, 'venue', 1, 100)
+    || validateString(scheduledAt, 'scheduledAt') || validateArray(players, 'players');
+  if (err) return res.status(400).json({ error: err });
 
   try {
     db.prepare(
-      'INSERT OR REPLACE INTO scheduled_games (id, venue, scheduled_at, players, created_at) VALUES (?, ?, ?, ?, ?)'
-    ).run(id, venue, scheduledAt, JSON.stringify(players), createdAt || new Date().toISOString());
+      'INSERT OR REPLACE INTO scheduled_games (id, venue, scheduled_at, players, created_at, owner_user_id) VALUES (?, ?, ?, ?, ?, ?)'
+    ).run(id, venue, scheduledAt, JSON.stringify(players), createdAt || new Date().toISOString(), ownerUserId);
     res.json({ success: true });
   } catch (dbErr) {
     console.error('Failed to save scheduled game:', dbErr.message);
-    res.status(500).json({ error: dbErr.message });
+    res.status(500).json({ error: 'Ошибка сохранения' });
   }
 });
 
-app.delete('/api/scheduled/:id', requireBound, (req, res) => {
-  db.prepare('DELETE FROM scheduled_games WHERE id = ?').run(req.params.id);
-  res.json({ success: true });
+app.delete('/api/scheduled/:id', requireTelegramAuth, requireBound, strictLimiter, (req, res) => {
+  try {
+    db.prepare('DELETE FROM scheduled_games WHERE id = ?').run(req.params.id);
+    res.json({ success: true });
+  } catch (dbErr) {
+    console.error('Failed to delete scheduled game:', dbErr.message);
+    res.status(500).json({ error: 'Ошибка удаления' });
+  }
 });
 
-// ===== STATIC =====
+// ===== STATIC & SPA =====
+
 app.use(express.static(path.join(__dirname, '..', 'dist')));
 
-// Глобальный обработчик ошибок
-app.use((err, req, res, next) => {
-  console.error('Unhandled error:', err.message);
-  res.status(500).json({ error: 'Internal server error' });
-});
-
-// SPA fallback
 app.get('*', (req, res, next) => {
   if (req.path.startsWith('/api')) return next();
   res.sendFile(path.join(__dirname, '..', 'dist', 'index.html'));
+});
+
+// Глобальный обработчик ошибок
+app.use((err, req, res, next) => {
+  if (err.message === 'CORS blocked') {
+    return res.status(403).json({ error: 'CORS policy violation' });
+  }
+  console.error('Unhandled error:', err.message);
+  res.status(500).json({ error: 'Internal server error' });
 });
 
 const PORT = process.env.PORT || 3001;

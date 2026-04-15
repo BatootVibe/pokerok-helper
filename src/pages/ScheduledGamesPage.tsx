@@ -81,12 +81,12 @@ export function ScheduledGamesPage() {
     setVenue(game.venue || '');
     setNewVenue('');
     setDateTime(game.scheduledAt || '');
-    // Подставляем tgId для привязанных игроков
+    // Подставляем userId для привязанных игроков
     const allPlayers = await getAllPlayers();
-    const playerMap = new Map(allPlayers.map(p => [p.name.toLowerCase(), { name: p.name, tgId: p.tgId || undefined }]));
+    const playerMap = new Map(allPlayers.map(p => [p.name.toLowerCase(), { name: p.name, userId: p.id }]));
     setPlayers((game.players || []).map(name => {
       const linked = playerMap.get(name.toLowerCase());
-      return linked ? { name: linked.name, tgId: linked.tgId } : { name };
+      return linked || { name };
     }));
     setFormKey(k => k + 1);
     setShowForm(true);

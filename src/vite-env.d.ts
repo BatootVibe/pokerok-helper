@@ -34,6 +34,6 @@ interface TelegramWebApp {
 // Global window extensions
 interface Window {
   Telegram?: TelegramWebApp;
-  lastGamePlayers?: Array<{ name: string; tgId?: string }>;
+  lastGamePlayers?: Array<{ name: string; userId?: number }>;
 }
 

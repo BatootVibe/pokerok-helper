@@ -47,7 +47,7 @@ export interface ChipPreset {
 export interface GamePlayer {
   id: string;
   name: string;
-  tgId?: string; // Telegram ID привязанного пользователя
+  userId?: number; // внутренний ID пользователя
   rebuyQty: number; // количество ребай
 }
 
@@ -67,7 +67,7 @@ export interface Game {
 export interface GameResult {
   playerId: string;
   playerName: string;
-  tgId?: string; // Telegram ID игрока на момент сохранения результата
+  userId?: number; // внутренний ID пользователя на момент сохранения результата
   buyInQty: number; // количество бай-инов (всегда 1)
   rebuyQty: number; // количество ребай
   wasChips: number; // Было: стартовые × (buyInQty + rebuyQty)

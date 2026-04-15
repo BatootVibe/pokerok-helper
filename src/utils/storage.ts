@@ -1,5 +1,5 @@
 import { ChipPreset, CompletedGame, ScheduledGame } from '../types';
-import { apiGetGames, apiSaveGame, apiClearAllGames, apiGetPresets, apiSavePreset, apiDeletePreset, apiDeleteGame, apiGetScheduled, apiSaveScheduled, apiDeleteScheduled, apiHealthCheck, apiGet, apiPost, apiGetVenues, apiSaveVenue, apiDeleteVenue, apiDeleteUser, apiUpdateUser } from './api';
+import { apiGetGames, apiSaveGame, apiClearAllGames, apiGetPresets, apiSavePreset, apiDeletePreset, apiDeleteGame, apiGetScheduled, apiSaveScheduled, apiDeleteScheduled, apiHealthCheck, apiGet, apiPost, apiPut, apiRequest, apiGetVenues, apiSaveVenue, apiDeleteVenue } from './api';
 import {
   LOCAL_HISTORY_KEY,
   LOCAL_PRESETS_KEY,
@@ -248,68 +248,57 @@ export async function findNearbyScheduledGame(): Promise<ScheduledGame | null> {
 
 // === User Profile & Players ===
 
-export async function getUserProfile(tgId: string): Promise<{ name: string; tgId: string } | null> {
-  // 1. Сначала всегда пробуем получить актуальные данные с сервера
+/** Получает профиль текущего пользователя (только имя). */
+export async function getUserProfile(): Promise<{ name: string } | null> {
   try {
-    const data = await apiGet<{ name: string; tgId: string } | null>(`/api/users/${tgId}`);
-    // Если сервер вернул данные — обновляем кэш и возвращаем их
-    if (data) {
-      localStorage.setItem(LOCAL_USER_PROFILE_KEY + tgId, JSON.stringify(data));
+    const data = await apiGet<{ name: string } | null>('/api/users/me');
+    if (data && data.name) {
+      localStorage.setItem(LOCAL_USER_PROFILE_KEY + 'current', JSON.stringify(data));
       return data;
     }
   } catch {
-    // Если сервер недоступен — пробуем достать из кэша (офлайн режим)
     try {
-      const cached = localStorage.getItem(LOCAL_USER_PROFILE_KEY + tgId);
-      if (cached) {
-        return JSON.parse(cached);
-      }
-    } catch {
-      // ignore
-    }
+      const cached = localStorage.getItem(LOCAL_USER_PROFILE_KEY + 'current');
+      if (cached) return JSON.parse(cached);
+    } catch { /* ignore */ }
   }
   return null;
 }
 
-export async function saveUserProfile(profile: { name: string; tgId: string }): Promise<{ success: boolean; error?: string }> {
-  // Сначала пробуем API
+/** Привязка: сервер сам определяет пользователя из подписи. */
+export async function saveUserProfile(profile: { name: string }): Promise<{ success: boolean; error?: string }> {
   try {
     await apiPost('/api/users', profile);
   } catch (e: unknown) {
-    console.error('Failed to save profile to API', e);
     const apiErr = e as { status?: number; body?: { error?: string } };
     if (apiErr.status === 409 && apiErr.body?.error) {
       return { success: false, error: apiErr.body.error };
     }
     return { success: false, error: 'Ошибка при привязке. Попробуйте ещё раз.' };
   }
-
-  // Только после успешного API-запроса обновляем кэш
-  localStorage.setItem(LOCAL_USER_PROFILE_KEY + profile.tgId, JSON.stringify(profile));
+  localStorage.setItem(LOCAL_USER_PROFILE_KEY + 'current', JSON.stringify(profile));
   return { success: true };
 }
 
-export async function deleteUserProfile(tgId: string): Promise<void> {
-  // Удаляем из API
+/** Удаление профиля. */
+export async function deleteUserProfile(): Promise<void> {
   try {
-    await apiDeleteUser(tgId);
+    await apiRequest('/api/users', { method: 'DELETE' });
   } catch {
     apiAvailable = false;
     apiLastFailTime = Date.now();
     throw new Error('Не удалось отвязать аккаунт на сервере');
   }
-  // Удаляем из localStorage
-  localStorage.removeItem(LOCAL_USER_PROFILE_KEY + tgId);
+  localStorage.removeItem(LOCAL_USER_PROFILE_KEY + 'current');
 }
 
-export async function updateUserProfile(profile: { name: string; tgId: string }): Promise<{ success: boolean; error?: string }> {
+/** Обновление имени. */
+export async function updateUserProfile(profile: { name: string }): Promise<{ success: boolean; error?: string }> {
   try {
-    await apiUpdateUser(profile.tgId, profile.name);
-    // Обновляем кэш только после успешного сохранения в API
-    localStorage.setItem(LOCAL_USER_PROFILE_KEY + profile.tgId, JSON.stringify(profile));
+    await apiPut('/api/users', profile);
+    localStorage.setItem(LOCAL_USER_PROFILE_KEY + 'current', JSON.stringify(profile));
     return { success: true };
   } catch (e: unknown) {
-    console.error('Failed to update profile to API', e);
     const apiErr = e as { status?: number; body?: { error?: string } };
     if (apiErr.status === 409 && apiErr.body?.error) {
       return { success: false, error: apiErr.body.error };
@@ -318,42 +307,36 @@ export async function updateUserProfile(profile: { name: string; tgId: string })
   }
 }
 
-/**
- * Собирает все профили из localStorage.
- * Работает даже если API недоступен.
- */
-function _getLocalProfiles(): { name: string; tgId: string }[] {
-  const profiles: { name: string; tgId: string }[] = [];
+/** Собирает профили из localStorage (fallback для офлайн-режима). */
+function _getLocalProfiles(): { name: string; userId: number }[] {
+  const profiles: { name: string; userId: number }[] = [];
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i);
     if (key && key.startsWith(LOCAL_USER_PROFILE_KEY)) {
       try {
         const profile = JSON.parse(localStorage.getItem(key) || '');
-        if (profile && profile.name && profile.tgId) {
+        if (profile && profile.name && profile.userId) {
           profiles.push(profile);
         }
-      } catch {
-        // ignore
-      }
+      } catch { /* ignore */ }
     }
   }
   return profiles;
 }
 
-export async function getAllPlayers(): Promise<{ name: string; tgId: string | null }[]> {
-  // Всегда собираем профили из localStorage
+/**
+ * Получает список всех привязанных игроков (id + name).
+ * API: из БД. Fallback: из localStorage.
+ */
+export async function getAllPlayers(): Promise<{ name: string; id: number }[]> {
   const local = _getLocalProfiles();
-
-  // Пробуем получить с API
   try {
-    const apiPlayers = await apiGet<{ name: string; tgId: string | null }[]>('/api/players');
-    // Объединяем: API-игроки + локальные, которых нет в API
-    const apiTgIds = new Set(apiPlayers.map(p => p.tgId).filter((id): id is string => Boolean(id)));
-    const extra = local.filter(p => !apiTgIds.has(p.tgId));
-    return [...apiPlayers, ...extra.map(p => ({ name: p.name, tgId: p.tgId }))];
+    const apiPlayers = await apiGet<{ name: string; id: number }[]>('/api/players');
+    const apiIds = new Set(apiPlayers.map(p => p.id));
+    const extra = local.filter(p => !apiIds.has(p.userId));
+    return [...apiPlayers, ...extra.map(p => ({ name: p.name, id: p.userId }))];
   } catch {
-    // API недоступен — возвращаем только localStorage профили
-    return local.map(p => ({ name: p.name, tgId: p.tgId }));
+    return local.map(p => ({ name: p.name, id: p.userId }));
   }
 }
 
