@@ -108,7 +108,7 @@ export function ResultsPage() {
                   return (
                     <tr key={result.playerId}>
                       <td className="font-semibold">
-                        <span className={isVerified(result.playerName) ? 'verified-player' : ''}>
+                        <span className={isVerified(result.userId) ? 'verified-player' : ''}>
                           {result.playerName}
                         </span>
                       </td>
@@ -158,10 +158,10 @@ export function ResultsPage() {
                   {transfers.map((t, i) => (
                     <tr key={i}>
                       <td>
-                        <span className={isVerified(t.from) ? 'verified-player' : ''}>{t.from}</span>
+                        <span>{t.from}</span>
                       </td>
                       <td>
-                        <span className={isVerified(t.to) ? 'verified-player' : ''}>{t.to}</span>
+                        <span>{t.to}</span>
                       </td>
                       <td className="result-negative">{t.amount} ₽</td>
                     </tr>

@@ -99,7 +99,7 @@ function GameEntry({ game, isExpanded, onToggle, onDelete, isVerified, isBound }
   isExpanded: boolean;
   onToggle: () => void;
   onDelete: () => void;
-  isVerified: (name: string) => boolean;
+  isVerified: (userId?: number) => boolean;
   isBound: boolean;
 }) {
   const [activeTab, setActiveTab] = useState<'results' | 'debts'>('results');
@@ -142,7 +142,7 @@ function GameEntry({ game, isExpanded, onToggle, onDelete, isVerified, isBound }
           {activeTab === 'results' && (
             <div className="player-grid">
               {game.players.map(player => (
-                <PlayerResult key={player.playerId} player={player} isVerified={isVerified(player.playerName)} />
+                <PlayerResult key={player.playerId} player={player} isVerified={isVerified(player.userId)} />
               ))}
             </div>
           )}
@@ -153,9 +153,9 @@ function GameEntry({ game, isExpanded, onToggle, onDelete, isVerified, isBound }
                 transfers.map((t, i) => (
                   <div key={i} className="player-result debt-card">
                     <div className="debt-players">
-                      <span className={isVerified(t.from) ? 'verified-player' : ''}>{t.from}</span>
+                      <span>{t.from}</span>
                       <span className="debt-arrow">→</span>
-                      <span className={isVerified(t.to) ? 'verified-player' : ''}>{t.to}</span>
+                      <span>{t.to}</span>
                     </div>
                     <div className="result-negative debt-amount">{t.amount} ₽</div>
                   </div>

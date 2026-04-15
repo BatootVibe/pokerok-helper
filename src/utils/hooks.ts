@@ -3,47 +3,48 @@ import { apiGet } from './api';
 import { LOCAL_USER_PROFILE_KEY } from './constants';
 
 /**
- * Хук для получения Map привязанных игроков (имя → userId).
+ * Хук для получения Set ID привязанных игроков.
  * Загружает с API (из БД). Если API недоступен — fallback на localStorage.
  */
 export function useVerifiedPlayers() {
-  const [verifiedMap, setVerifiedMap] = useState<Map<string, number>>(new Map());
+  const [verifiedIds, setVerifiedIds] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     // 1. Сначала пробуем API
     apiGet<{ name: string; id: number }[]>('/api/players')
       .then(players => {
-        const map = new Map<string, number>();
+        const ids = new Set<number>();
         for (const p of players) {
           if (p.id) {
-            map.set(p.name.toLowerCase(), p.id);
+            ids.add(p.id);
           }
         }
-        setVerifiedMap(map);
+        setVerifiedIds(ids);
       })
       .catch(() => {
         // 2. Fallback: загружаем из localStorage
-        const map = new Map<string, number>();
+        const ids = new Set<number>();
         for (let i = 0; i < localStorage.length; i++) {
           const key = localStorage.key(i);
           if (key && key.startsWith(LOCAL_USER_PROFILE_KEY)) {
             try {
               const profile = JSON.parse(localStorage.getItem(key) || '');
-              if (profile && profile.name && profile.userId) {
-                map.set(profile.name.toLowerCase(), profile.userId);
+              if (profile && profile.userId) {
+                ids.add(profile.userId);
               }
             } catch {
               // ignore
             }
           }
         }
-        setVerifiedMap(map);
+        setVerifiedIds(ids);
       });
   }, []);
 
-  const isVerified = useCallback((name: string): boolean => {
-    return verifiedMap.has(name.toLowerCase());
-  }, [verifiedMap]);
+  // Проверяем по ID, а не по имени
+  const isVerified = useCallback((userId?: number): boolean => {
+    return !!userId && verifiedIds.has(userId);
+  }, [verifiedIds]);
 
-  return { isVerified, verifiedMap };
+  return { isVerified, verifiedIds };
 }
