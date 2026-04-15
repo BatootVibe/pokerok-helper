@@ -83,6 +83,7 @@ export function GameTablePage() {
           players={players}
           onAddPlayer={handleAddPlayer}
           onRemovePlayer={() => {}}
+          showHistoryBtn={false}
         />
       </div>
 
