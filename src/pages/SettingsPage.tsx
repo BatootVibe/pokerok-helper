@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { clearGameHistory, getUserProfile, saveUserProfile, deleteUserProfile } from '../utils/storage';
+import { clearGameHistory, getUserProfile, saveUserProfile, deleteUserProfile, updateUserProfile } from '../utils/storage';
 import { HeaderBack } from '../components/HeaderBack';
 import { ConfirmModal } from '../components/ConfirmModal';
 
@@ -9,6 +9,7 @@ export function SettingsPage() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [showBindModal, setShowBindModal] = useState(false);
   const [showUnbindConfirm, setShowUnbindConfirm] = useState(false);
+  const [showEditNameModal, setShowEditNameModal] = useState(false);
   const [bindName, setBindName] = useState('');
   const [bindError, setBindError] = useState('');
   const [userProfile, setUserProfile] = useState<{ name: string; tgId: string } | null>(null);
@@ -56,6 +57,19 @@ export function SettingsPage() {
     }
   };
 
+  const handleUpdateName = async () => {
+    if (!bindName.trim() || !currentTgId) return;
+    setBindError('');
+    const result = await updateUserProfile({ name: bindName.trim(), tgId: currentTgId });
+    if (result.success) {
+      setUserProfile({ name: bindName.trim(), tgId: currentTgId });
+      setBindName('');
+      setShowEditNameModal(false);
+    } else {
+      setBindError(result.error || 'Ошибка при сохранении');
+    }
+  };
+
   const handleResetApp = () => {
     if (confirm('Сбросить все данные приложения? Это очистит кэш и вернёт настройки по умолчанию.')) {
       localStorage.clear();
@@ -94,6 +108,17 @@ export function SettingsPage() {
               <span className="profile-id">ID: {userProfile.tgId.slice(-6)}</span>
             </div>
             <div className="mt-12" style={{ display: 'flex', gap: '8px' }}>
+              <button
+                className="btn btn-secondary btn-small"
+                style={{ flex: 1 }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setBindName(userProfile.name);
+                  setShowEditNameModal(true);
+                }}
+              >
+                ✏️ Изменить
+              </button>
               <button
                 className="btn btn-danger btn-small"
                 style={{ flex: 1 }}
@@ -171,6 +196,33 @@ export function SettingsPage() {
                 Привязать
               </button>
               <button className="btn btn-secondary btn-small" style={{ flex: 1 }} onClick={() => setShowBindModal(false)}>
+                Отмена
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showEditNameModal && (
+        <div className="modal-overlay">
+          <div className="card card-modal">
+            <h3 className="modal-title">✏️ Изменить имя</h3>
+            <p className="modal-desc">Это изменит ваше имя во всех прошлых играх</p>
+            {bindError && <p className="error-text">{bindError}</p>}
+            <input
+              className="input"
+              type="text"
+              placeholder="Ваше имя"
+              value={bindName}
+              onChange={e => { setBindName(e.target.value); setBindError(''); }}
+              onKeyDown={e => e.key === 'Enter' && handleUpdateName()}
+              autoFocus
+            />
+            <div className="modal-actions mt-16">
+              <button className="btn btn-primary btn-small" style={{ flex: 1 }} onClick={handleUpdateName} disabled={!bindName.trim()}>
+                Сохранить
+              </button>
+              <button className="btn btn-secondary btn-small" style={{ flex: 1 }} onClick={() => setShowEditNameModal(false)}>
                 Отмена
               </button>
             </div>

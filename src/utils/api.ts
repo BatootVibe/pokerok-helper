@@ -144,3 +144,10 @@ export function apiHealthCheck(): Promise<{ status: string }> {
 export function apiDeleteUser(tgId: string): Promise<{ success: boolean }> {
   return request(`/api/users/${tgId}`, { method: 'DELETE' });
 }
+
+export function apiUpdateUser(tgId: string, name: string): Promise<{ tgId: string; name: string }> {
+  return request(`/api/users/${tgId}`, {
+    method: 'PUT',
+    body: JSON.stringify({ name }),
+  });
+}

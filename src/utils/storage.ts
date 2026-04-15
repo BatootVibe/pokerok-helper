@@ -1,5 +1,5 @@
 import { ChipPreset, CompletedGame, ScheduledGame } from '../types';
-import { apiGetGames, apiSaveGame, apiClearAllGames, apiGetPresets, apiSavePreset, apiDeletePreset, apiDeleteGame, apiGetScheduled, apiSaveScheduled, apiDeleteScheduled, apiHealthCheck, apiGet, apiPost, apiGetVenues, apiSaveVenue, apiDeleteVenue, apiDeleteUser } from './api';
+import { apiGetGames, apiSaveGame, apiClearAllGames, apiGetPresets, apiSavePreset, apiDeletePreset, apiDeleteGame, apiGetScheduled, apiSaveScheduled, apiDeleteScheduled, apiHealthCheck, apiGet, apiPost, apiGetVenues, apiSaveVenue, apiDeleteVenue, apiDeleteUser, apiUpdateUser } from './api';
 import {
   LOCAL_HISTORY_KEY,
   LOCAL_PRESETS_KEY,
@@ -300,6 +300,22 @@ export async function deleteUserProfile(tgId: string): Promise<void> {
   }
   // Удаляем из localStorage
   localStorage.removeItem(LOCAL_USER_PROFILE_KEY + tgId);
+}
+
+export async function updateUserProfile(profile: { name: string; tgId: string }): Promise<{ success: boolean; error?: string }> {
+  try {
+    await apiUpdateUser(profile.tgId, profile.name);
+    // Обновляем кэш только после успешного сохранения в API
+    localStorage.setItem(LOCAL_USER_PROFILE_KEY + profile.tgId, JSON.stringify(profile));
+    return { success: true };
+  } catch (e: unknown) {
+    console.error('Failed to update profile to API', e);
+    const apiErr = e as { status?: number; body?: { error?: string } };
+    if (apiErr.status === 409 && apiErr.body?.error) {
+      return { success: false, error: apiErr.body.error };
+    }
+    return { success: false, error: 'Ошибка при сохранении. Попробуйте ещё раз.' };
+  }
 }
 
 /**

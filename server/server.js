@@ -33,6 +33,7 @@ db.exec(`
     game_id TEXT NOT NULL,
     player_id TEXT NOT NULL,
     player_name TEXT NOT NULL,
+    tg_id TEXT,
     buy_in_qty INTEGER NOT NULL DEFAULT 1,
     rebuy_qty INTEGER NOT NULL DEFAULT 0,
     was_chips INTEGER NOT NULL,
@@ -41,6 +42,9 @@ db.exec(`
     spent_rubles REAL NOT NULL,
     FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE
   );
+
+  -- Добавляем tg_id если колонки нет (для старых БД)
+  ALTER TABLE game_results ADD COLUMN tg_id TEXT;
 
   CREATE TABLE IF NOT EXISTS presets (
     id TEXT PRIMARY KEY,
@@ -194,7 +198,7 @@ app.post('/api/games', requireBound, (req, res) => {
     'INSERT OR REPLACE INTO games (id, date, finished_at, venue, starting_chips, buy_in_rubles, chip_price_rubles) VALUES (?, ?, ?, ?, ?, ?, ?)'
   );
   const insertResult = db.prepare(
-    'INSERT INTO game_results (game_id, player_id, player_name, buy_in_qty, rebuy_qty, was_chips, became_chips, rubles, spent_rubles) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    'INSERT INTO game_results (game_id, player_id, player_name, tg_id, buy_in_qty, rebuy_qty, was_chips, became_chips, rubles, spent_rubles) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
   );
 
   const tx = db.transaction(() => {
@@ -204,6 +208,7 @@ app.post('/api/games', requireBound, (req, res) => {
         id,
         p.playerId,
         p.playerName,
+        p.tgId || null,
         p.buyInQty,
         p.rebuyQty,
         p.wasChips,
@@ -306,6 +311,31 @@ app.delete('/api/users/:tgId', (req, res) => {
   const { tgId } = req.params;
   db.prepare('DELETE FROM users WHERE tg_id = ?').run(tgId);
   res.json({ success: true });
+});
+
+app.put('/api/users/:tgId', requireBound, (req, res) => {
+  const { tgId } = req.params;
+  const { name } = req.body;
+  if (!name) return res.status(400).json({ error: 'Name is required' });
+
+  // Проверяем, не занято ли имя другим пользователем
+  const existingUser = db.prepare('SELECT tg_id FROM users WHERE player_name = ? AND tg_id != ?').get(name, tgId);
+  if (existingUser) {
+    return res.status(409).json({ error: 'Это имя уже занято другим игроком' });
+  }
+
+  try {
+    const tx = db.transaction(() => {
+      // Обновляем имя в профиле
+      db.prepare('UPDATE users SET player_name = ? WHERE tg_id = ?').run(name, tgId);
+      // Обновляем имя во всех играх этого пользователя
+      db.prepare("UPDATE game_results SET player_name = ? WHERE tg_id = ?").run(name, tgId);
+    });
+    tx();
+    res.json({ tgId, name });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 app.get('/api/players', (req, res) => {
