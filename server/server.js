@@ -58,7 +58,6 @@ db.exec(`
   );
 
   CREATE INDEX IF NOT EXISTS idx_results_game ON game_results(game_id);
-  CREATE INDEX IF NOT EXISTS idx_results_user ON game_results(user_id);
   CREATE INDEX IF NOT EXISTS idx_games_owner ON games(owner_user_id);
 
   CREATE TABLE IF NOT EXISTS scheduled_games (
