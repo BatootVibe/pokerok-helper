@@ -2069,3 +2069,23 @@ select.input option {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.admin-list-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.admin-rename-row {
+  display: flex;
+  gap: 4px;
+  width: 100%;
+  align-items: center;
+}
+
+.admin-rename-row .input {
+  padding: 4px 8px;
+  font-size: 13px;
+  min-width: 0;
+  flex: 1;
+}

@@ -181,3 +181,10 @@ export function apiAdminDeleteVenue(name: string): Promise<{ success: boolean }>
 export function apiAdminDeleteScheduled(id: string): Promise<{ success: boolean }> {
   return request(`/api/admin/scheduled/${id}`, { method: 'DELETE' });
 }
+
+export function apiAdminRenameUser(id: number, name: string): Promise<{ success: boolean }> {
+  return request(`/api/admin/users/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify({ name }),
+  });
+}

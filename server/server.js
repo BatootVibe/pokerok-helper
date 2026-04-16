@@ -680,6 +680,45 @@ app.delete('/api/admin/scheduled/:id', requireTelegramAuth, requireAdmin, strict
   }
 });
 
+app.put('/api/admin/users/:id', requireTelegramAuth, requireAdmin, strictLimiter, (req, res) => {
+  const userId = parseInt(req.params.id);
+  const { name } = req.body;
+  if (!name || typeof name !== 'string' || name.trim().length < 1 || name.trim().length > 50) {
+    return res.status(400).json({ error: 'Имя должно быть от 1 до 50 символов' });
+  }
+  const sanitizedName = name.trim();
+
+  const existingUser = db.prepare('SELECT id FROM users WHERE player_name = ? AND id != ?').get(sanitizedName, userId);
+  if (existingUser) {
+    return res.status(409).json({ error: 'Это имя уже занято другим игроком' });
+  }
+
+  try {
+    const oldName = db.prepare('SELECT player_name FROM users WHERE id = ?').get(userId)?.player_name;
+    const tx = db.transaction(() => {
+      db.prepare('UPDATE users SET player_name = ? WHERE id = ?').run(sanitizedName, userId);
+      db.prepare('UPDATE game_results SET player_name = ? WHERE user_id = ?').run(sanitizedName, userId);
+      if (oldName && oldName !== sanitizedName) {
+        const rows = db.prepare('SELECT id, players FROM scheduled_games').all();
+        for (const row of rows) {
+          try {
+            const players = JSON.parse(row.players);
+            const updated = players.map(p => p === oldName ? sanitizedName : p);
+            if (players.some((p, i) => updated[i] !== p)) {
+              db.prepare('UPDATE scheduled_games SET players = ? WHERE id = ?').run(JSON.stringify(updated), row.id);
+            }
+          } catch {}
+        }
+      }
+    });
+    tx();
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Failed to rename user:', err.message);
+    res.status(500).json({ error: 'Ошибка переименования' });
+  }
+});
+
 // ===== STATIC & SPA =====
 
 app.use(express.static(path.join(__dirname, '..', 'dist')));

@@ -1,5 +1,5 @@
 import { ChipPreset, CompletedGame, ScheduledGame } from '../types';
-import { apiGetGames, apiSaveGame, apiClearAllGames, apiGetPresets, apiSavePreset, apiDeletePreset, apiDeleteGame, apiGetScheduled, apiSaveScheduled, apiDeleteScheduled, apiHealthCheck, apiGet, apiPost, apiPut, apiRequest, apiGetVenues, apiSaveVenue, apiDeleteVenue, apiAdminStats, apiAdminClearAllGames, apiAdminDeleteGame, apiAdminDeleteUser, apiAdminDeletePreset, apiAdminDeleteVenue, apiAdminDeleteScheduled } from './api';
+import { apiGetGames, apiSaveGame, apiClearAllGames, apiGetPresets, apiSavePreset, apiDeletePreset, apiDeleteGame, apiGetScheduled, apiSaveScheduled, apiDeleteScheduled, apiHealthCheck, apiGet, apiPost, apiPut, apiRequest, apiGetVenues, apiSaveVenue, apiDeleteVenue, apiAdminStats, apiAdminClearAllGames, apiAdminDeleteGame, apiAdminDeleteUser, apiAdminDeletePreset, apiAdminDeleteVenue, apiAdminDeleteScheduled, apiAdminRenameUser } from './api';
 import {
   LOCAL_HISTORY_KEY,
   LOCAL_PRESETS_KEY,
@@ -400,4 +400,8 @@ export async function adminDeleteScheduled(id: string) {
   let games: ScheduledGame[] = [];
   try { games = JSON.parse(localStorage.getItem(LOCAL_SCHEDULED_KEY) || '[]'); } catch {}
   localStorage.setItem(LOCAL_SCHEDULED_KEY, JSON.stringify(games.filter(g => g.id !== id)));
+}
+
+export async function adminRenameUser(id: number, name: string) {
+  await apiAdminRenameUser(id, name);
 }

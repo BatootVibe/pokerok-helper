@@ -15,6 +15,7 @@ import {
   loadVenues,
   loadScheduledGames,
   getAllPlayers,
+  adminRenameUser,
 } from '../utils/storage';
 
 interface AdminStats {
@@ -34,6 +35,8 @@ export function AdminPage() {
   const [scheduled, setScheduled] = useState<any[]>([]);
   const [activeSection, setActiveSection] = useState<string>('stats');
   const [confirmAction, setConfirmAction] = useState<{ title: string; description: string; onConfirm: () => void } | null>(null);
+  const [editingUserId, setEditingUserId] = useState<number | null>(null);
+  const [editingName, setEditingName] = useState('');
 
   const refresh = useCallback(async () => {
     try {
@@ -217,10 +220,42 @@ export function AdminPage() {
               {users.map(u => (
                 <div key={u.id} className="admin-list-item">
                   <div className="admin-list-info">
-                    <span className="admin-list-title verified-player">{u.name}</span>
+                    {editingUserId === u.id ? (
+                      <div className="admin-rename-row">
+                        <input
+                          className="input"
+                          type="text"
+                          value={editingName}
+                          onChange={e => setEditingName(e.target.value)}
+                          onKeyDown={async e => {
+                            if (e.key === 'Enter' && editingName.trim()) {
+                              await adminRenameUser(u.id, editingName.trim());
+                              setEditingUserId(null);
+                              refresh();
+                            }
+                          }}
+                          autoFocus
+                        />
+                        <button className="btn btn-primary btn-small" onClick={async () => {
+                          if (editingName.trim()) {
+                            await adminRenameUser(u.id, editingName.trim());
+                            setEditingUserId(null);
+                            refresh();
+                          }
+                        }}>✓</button>
+                        <button className="btn btn-secondary btn-small" onClick={() => setEditingUserId(null)}>✕</button>
+                      </div>
+                    ) : (
+                      <span className="admin-list-title verified-player">{u.name}</span>
+                    )}
                     <span className="text-muted text-sm">ID: {u.id}</span>
                   </div>
-                  <button className="btn btn-danger btn-small" onClick={() => handleDeleteUser(u.id, u.name)}>🗑️</button>
+                  <div className="admin-list-actions">
+                    {editingUserId !== u.id && (
+                      <button className="btn btn-secondary btn-small" onClick={() => { setEditingUserId(u.id); setEditingName(u.name); }}>✏️</button>
+                    )}
+                    <button className="btn btn-danger btn-small" onClick={() => handleDeleteUser(u.id, u.name)}>🗑️</button>
+                  </div>
                 </div>
               ))}
             </div>
