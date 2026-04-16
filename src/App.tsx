@@ -12,6 +12,7 @@ import { AnalyticsPage } from './pages/AnalyticsPage';
 import { PresetsPage } from './pages/PresetsPage';
 import { ScheduledGamesPage } from './pages/ScheduledGamesPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { AdminPage } from './pages/AdminPage';
 import './App.css';
 
 function App() {
@@ -51,6 +52,7 @@ function App() {
             <Route path="/presets" element={<PresetsPage />} />
             <Route path="/scheduled" element={<ScheduledGamesPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/admin" element={<AdminPage />} />
             <Route path="*" element={<HomePage />} />
           </Routes>
         </BrowserRouter>

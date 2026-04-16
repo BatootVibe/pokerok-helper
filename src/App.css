@@ -2016,3 +2016,56 @@ select.input option {
   background: var(--bg-secondary);
   color: var(--text-primary);
 }
+
+/* === Admin Panel === */
+
+.admin-section-tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 0 0 8px;
+  margin-bottom: 12px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.admin-section-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.admin-section-tabs .result-tab {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.admin-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.admin-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  gap: 12px;
+}
+
+.admin-list-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.admin-list-title {
+  font-weight: 600;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

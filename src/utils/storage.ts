@@ -1,5 +1,5 @@
 import { ChipPreset, CompletedGame, ScheduledGame } from '../types';
-import { apiGetGames, apiSaveGame, apiClearAllGames, apiGetPresets, apiSavePreset, apiDeletePreset, apiDeleteGame, apiGetScheduled, apiSaveScheduled, apiDeleteScheduled, apiHealthCheck, apiGet, apiPost, apiPut, apiRequest, apiGetVenues, apiSaveVenue, apiDeleteVenue } from './api';
+import { apiGetGames, apiSaveGame, apiClearAllGames, apiGetPresets, apiSavePreset, apiDeletePreset, apiDeleteGame, apiGetScheduled, apiSaveScheduled, apiDeleteScheduled, apiHealthCheck, apiGet, apiPost, apiPut, apiRequest, apiGetVenues, apiSaveVenue, apiDeleteVenue, apiAdminStats, apiAdminClearAllGames, apiAdminDeleteGame, apiAdminDeleteUser, apiAdminDeletePreset, apiAdminDeleteVenue, apiAdminDeleteScheduled } from './api';
 import {
   LOCAL_HISTORY_KEY,
   LOCAL_PRESETS_KEY,
@@ -357,4 +357,47 @@ export async function checkApiHealth(): Promise<boolean> {
     apiLastFailTime = Date.now();
     return false;
   }
+}
+
+// === Admin functions (no localStorage fallback) ===
+
+export async function adminGetStats() {
+  return apiAdminStats();
+}
+
+export async function adminClearAllGames() {
+  await apiAdminClearAllGames();
+  localStorage.removeItem(LOCAL_HISTORY_KEY);
+}
+
+export async function adminDeleteGame(id: string) {
+  await apiAdminDeleteGame(id);
+  let history: CompletedGame[] = [];
+  try { history = JSON.parse(localStorage.getItem(LOCAL_HISTORY_KEY) || '[]'); } catch {}
+  localStorage.setItem(LOCAL_HISTORY_KEY, JSON.stringify(history.filter(g => g.id !== id)));
+}
+
+export async function adminDeleteUser(id: number) {
+  await apiAdminDeleteUser(id);
+}
+
+export async function adminDeletePreset(id: string) {
+  await apiAdminDeletePreset(id);
+  let presets: ChipPreset[] = [];
+  try { presets = JSON.parse(localStorage.getItem(LOCAL_PRESETS_KEY) || '[]'); } catch {}
+  localStorage.setItem(LOCAL_PRESETS_KEY, JSON.stringify(presets.filter(p => p.id !== id)));
+}
+
+export async function adminDeleteVenue(name: string) {
+  await apiAdminDeleteVenue(name);
+  let venues: string[] = [];
+  try { venues = JSON.parse(localStorage.getItem(LOCAL_VENUES_KEY) || '[]'); } catch {}
+  localStorage.setItem(LOCAL_VENUES_KEY, JSON.stringify(venues.filter(v => v !== name)));
+}
+
+export async function adminDeleteScheduled(id: string) {
+  await apiAdminDeleteScheduled(id);
+  let games: ScheduledGame[] = [];
+  try { games = JSON.parse(localStorage.getItem(LOCAL_SCHEDULED_KEY) || '[]'); } catch {}
+  localStorage.setItem(LOCAL_SCHEDULED_KEY, JSON.stringify(games.filter(g => g.id !== id)));
 }

@@ -1,17 +1,15 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { clearGameHistory, getUserProfile, saveUserProfile, updateUserProfile } from '../utils/storage';
+import { getUserProfile, saveUserProfile, updateUserProfile } from '../utils/storage';
 import { HeaderBack } from '../components/HeaderBack';
-import { ConfirmModal } from '../components/ConfirmModal';
 
 export function SettingsPage() {
   const navigate = useNavigate();
-  const [showConfirm, setShowConfirm] = useState(false);
   const [showBindModal, setShowBindModal] = useState(false);
   const [showEditNameModal, setShowEditNameModal] = useState(false);
   const [bindName, setBindName] = useState('');
   const [bindError, setBindError] = useState('');
-  const [userProfile, setUserProfile] = useState<{ name: string } | null>(null);
+  const [userProfile, setUserProfile] = useState<{ name: string; isAdmin?: boolean } | null>(null);
 
   // Удаляем isBound, так как теперь вход автоматический
 
@@ -51,15 +49,6 @@ export function SettingsPage() {
       setBindError(result.error || 'Ошибка при сохранении');
     }
   };
-
-  const handleClear = useCallback(async () => {
-    try {
-      await clearGameHistory();
-      setShowConfirm(false);
-    } catch {
-      alert('Не удалось очистить историю на сервере.');
-    }
-  }, []);
 
   return (
     <div className="page">
@@ -108,20 +97,14 @@ export function SettingsPage() {
         )}
       </div>
 
-      <div className="fixed-actions">
-        <button className="btn btn-danger" onClick={() => setShowConfirm(true)}>
-          🗑️ Очистить историю
-        </button>
-      </div>
-
-      {showConfirm && (
-        <ConfirmModal
-          title="🗑️ Очистить историю?"
-          description="Все записи будут удалены безвозвратно."
-          danger
-          onConfirm={handleClear}
-          onCancel={() => setShowConfirm(false)}
-        />
+      {userProfile?.isAdmin && (
+        <div className="card settings-card" onClick={() => navigate('/admin')}>
+          <h3 className="mb-4">🛡️ Админ-панель</h3>
+          <p className="text-muted text-sm mb-8">
+            Управление пользователями, играми, пресетами
+          </p>
+          <span className="settings-link-text">Открыть →</span>
+        </div>
       )}
 
       {showBindModal && (

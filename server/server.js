@@ -408,7 +408,8 @@ app.delete('/api/presets/:id', requireTelegramAuth, strictLimiter, (req, res) =>
 app.get('/api/users/me', requireTelegramAuth, (req, res) => {
   try {
     const user = db.prepare('SELECT player_name as name FROM users WHERE id = ?').get(req.userId);
-    res.json(user || null);
+    const ADMIN_TG_ID = process.env.ADMIN_TG_ID || '781007293';
+    res.json({ ...user, isAdmin: req.tgId === ADMIN_TG_ID });
   } catch {
     res.json(null);
   }
@@ -581,6 +582,101 @@ app.delete('/api/scheduled/:id', requireTelegramAuth, strictLimiter, (req, res) 
   } catch (dbErr) {
     console.error('Failed to delete scheduled game:', dbErr.message);
     res.status(500).json({ error: 'Ошибка удаления' });
+  }
+});
+
+// ===== ADMIN =====
+
+function requireAdmin(req, res, next) {
+  const ADMIN_TG_ID = process.env.ADMIN_TG_ID || '781007293';
+  if (req.tgId !== ADMIN_TG_ID) {
+    return res.status(403).json({ error: 'Доступ запрещён' });
+  }
+  next();
+}
+
+app.get('/api/admin/stats', requireTelegramAuth, requireAdmin, (req, res) => {
+  try {
+    const games = db.prepare('SELECT COUNT(*) as count FROM games').get().count;
+    const users = db.prepare('SELECT COUNT(*) as count FROM users WHERE player_name IS NOT NULL').get().count;
+    const presets = db.prepare('SELECT COUNT(*) as count FROM presets').get().count;
+    const venues = db.prepare('SELECT COUNT(*) as count FROM venues').get().count;
+    const scheduled = db.prepare('SELECT COUNT(*) as count FROM scheduled_games').get().count;
+    res.json({ games, users, presets, venues, scheduled });
+  } catch {
+    res.status(500).json({ error: 'Ошибка получения статистики' });
+  }
+});
+
+app.delete('/api/admin/games', requireTelegramAuth, requireAdmin, strictLimiter, (req, res) => {
+  try {
+    const tx = db.transaction(() => {
+      db.prepare('DELETE FROM game_results').run();
+      db.prepare('DELETE FROM games').run();
+    });
+    tx();
+    res.json({ success: true });
+  } catch (dbErr) {
+    console.error('Failed to clear all games:', dbErr.message);
+    res.status(500).json({ error: 'Ошибка очистки истории' });
+  }
+});
+
+app.delete('/api/admin/games/:id', requireTelegramAuth, requireAdmin, strictLimiter, (req, res) => {
+  try {
+    const tx = db.transaction(() => {
+      db.prepare('DELETE FROM game_results WHERE game_id = ?').run(req.params.id);
+      db.prepare('DELETE FROM games WHERE id = ?').run(req.params.id);
+    });
+    tx();
+    res.json({ success: true });
+  } catch (dbErr) {
+    console.error('Failed to delete game:', dbErr.message);
+    res.status(500).json({ error: 'Ошибка удаления игры' });
+  }
+});
+
+app.delete('/api/admin/users/:id', requireTelegramAuth, requireAdmin, strictLimiter, (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+    db.prepare('UPDATE game_results SET user_id = NULL WHERE user_id = ?').run(userId);
+    db.prepare('DELETE FROM presets WHERE owner_user_id = ?').run(userId);
+    db.prepare('DELETE FROM scheduled_games WHERE owner_user_id = ?').run(userId);
+    db.prepare('DELETE FROM users WHERE id = ?').run(userId);
+    res.json({ success: true });
+  } catch (dbErr) {
+    console.error('Failed to delete user:', dbErr.message);
+    res.status(500).json({ error: 'Ошибка удаления пользователя' });
+  }
+});
+
+app.delete('/api/admin/presets/:id', requireTelegramAuth, requireAdmin, strictLimiter, (req, res) => {
+  try {
+    db.prepare('DELETE FROM presets WHERE id = ?').run(req.params.id);
+    res.json({ success: true });
+  } catch (dbErr) {
+    console.error('Failed to delete preset:', dbErr.message);
+    res.status(500).json({ error: 'Ошибка удаления пресета' });
+  }
+});
+
+app.delete('/api/admin/venues/:name', requireTelegramAuth, requireAdmin, strictLimiter, (req, res) => {
+  try {
+    db.prepare('DELETE FROM venues WHERE name = ?').run(decodeURIComponent(req.params.name));
+    res.json({ success: true });
+  } catch (dbErr) {
+    console.error('Failed to delete venue:', dbErr.message);
+    res.status(500).json({ error: 'Ошибка удаления локации' });
+  }
+});
+
+app.delete('/api/admin/scheduled/:id', requireTelegramAuth, requireAdmin, strictLimiter, (req, res) => {
+  try {
+    db.prepare('DELETE FROM scheduled_games WHERE id = ?').run(req.params.id);
+    res.json({ success: true });
+  } catch (dbErr) {
+    console.error('Failed to delete scheduled game:', dbErr.message);
+    res.status(500).json({ error: 'Ошибка удаления запланированной игры' });
   }
 });
 

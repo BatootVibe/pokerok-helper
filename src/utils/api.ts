@@ -152,3 +152,32 @@ export function apiDeleteVenue(name: string): Promise<{ success: boolean }> {
 export function apiHealthCheck(): Promise<{ status: string }> {
   return request('/api/health');
 }
+
+// Admin
+export function apiAdminStats(): Promise<{ games: number; users: number; presets: number; venues: number; scheduled: number }> {
+  return request('/api/admin/stats');
+}
+
+export function apiAdminClearAllGames(): Promise<{ success: boolean }> {
+  return request('/api/admin/games', { method: 'DELETE' });
+}
+
+export function apiAdminDeleteGame(id: string): Promise<{ success: boolean }> {
+  return request(`/api/admin/games/${id}`, { method: 'DELETE' });
+}
+
+export function apiAdminDeleteUser(id: number): Promise<{ success: boolean }> {
+  return request(`/api/admin/users/${id}`, { method: 'DELETE' });
+}
+
+export function apiAdminDeletePreset(id: string): Promise<{ success: boolean }> {
+  return request(`/api/admin/presets/${id}`, { method: 'DELETE' });
+}
+
+export function apiAdminDeleteVenue(name: string): Promise<{ success: boolean }> {
+  return request(`/api/admin/venues/${encodeURIComponent(name)}`, { method: 'DELETE' });
+}
+
+export function apiAdminDeleteScheduled(id: string): Promise<{ success: boolean }> {
+  return request(`/api/admin/scheduled/${id}`, { method: 'DELETE' });
+}
