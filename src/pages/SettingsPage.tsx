@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { clearGameHistory, getUserProfile, saveUserProfile, deleteUserProfile, updateUserProfile } from '../utils/storage';
+import { clearGameHistory, getUserProfile, saveUserProfile, updateUserProfile } from '../utils/storage';
 import { HeaderBack } from '../components/HeaderBack';
 import { ConfirmModal } from '../components/ConfirmModal';
 
@@ -8,19 +8,21 @@ export function SettingsPage() {
   const navigate = useNavigate();
   const [showConfirm, setShowConfirm] = useState(false);
   const [showBindModal, setShowBindModal] = useState(false);
-  const [showUnbindConfirm, setShowUnbindConfirm] = useState(false);
   const [showEditNameModal, setShowEditNameModal] = useState(false);
   const [bindName, setBindName] = useState('');
   const [bindError, setBindError] = useState('');
   const [userProfile, setUserProfile] = useState<{ name: string } | null>(null);
 
-  const [isBound, setIsBound] = useState(false);
+  // Удаляем isBound, так как теперь вход автоматический
 
   // Загружаем профиль при входе
   useEffect(() => {
     getUserProfile().then(profile => {
       setUserProfile(profile);
-      setIsBound(!!profile);
+      // Если у пользователя нет имени — сразу показываем окно ввода
+      if (!profile || !profile.name) {
+        setShowBindModal(true);
+      }
     });
   }, []);
 
@@ -34,16 +36,6 @@ export function SettingsPage() {
       setShowBindModal(false);
     } else {
       setBindError(result.error || 'Ошибка при привязке');
-    }
-  };
-
-  const handleUnbind = async () => {
-    try {
-      await deleteUserProfile();
-      setUserProfile(null);
-      setShowUnbindConfirm(false);
-    } catch {
-      alert('Не удалось отвязать аккаунт. Попробуйте ещё раз.');
     }
   };
 
@@ -83,55 +75,43 @@ export function SettingsPage() {
 
       <div
         className="card settings-card settings-telegram"
-        onClick={() => !userProfile && setShowBindModal(true)}
+        onClick={() => !userProfile?.name && setShowBindModal(true)}
       >
-        {userProfile ? (
+        {userProfile?.name ? (
           <>
             <h3 className="mb-4">👤 Профиль</h3>
             <div className="profile-info">
               <span className="profile-name">{userProfile.name}</span>
             </div>
-            <div className="mt-12" style={{ display: 'flex', gap: '8px' }}>
+            <div className="mt-12">
               <button
                 className="btn btn-secondary btn-small"
-                style={{ flex: 1 }}
+                style={{ width: '100%' }}
                 onClick={(e) => {
                   e.stopPropagation();
                   setBindName(userProfile.name);
                   setShowEditNameModal(true);
                 }}
               >
-                ✏️ Изменить
-              </button>
-              <button
-                className="btn btn-danger btn-small"
-                style={{ flex: 1 }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowUnbindConfirm(true);
-                }}
-              >
-                🔓 Отвязать
+                ✏️ Изменить имя
               </button>
             </div>
           </>
         ) : (
           <>
-            <h3 className="mb-4">🔗 Привязка аккаунта</h3>
+            <h3 className="mb-4">👤 Профиль</h3>
             <p className="text-muted text-sm mb-8">
-              Привяжите аккаунт для синхронизации
+              Укажите имя, которое будут видеть другие игроки
             </p>
-            <span className="settings-link-text">Привязать →</span>
+            <span className="settings-link-text">Указать имя →</span>
           </>
         )}
       </div>
 
       <div className="fixed-actions">
-        {isBound && (
-          <button className="btn btn-danger" onClick={() => setShowConfirm(true)}>
-            🗑️ Очистить историю
-          </button>
-        )}
+        <button className="btn btn-danger" onClick={() => setShowConfirm(true)}>
+          🗑️ Очистить историю
+        </button>
       </div>
 
       {showConfirm && (
@@ -144,21 +124,11 @@ export function SettingsPage() {
         />
       )}
 
-      {showUnbindConfirm && (
-        <ConfirmModal
-          title="🔓 Отвязать аккаунт?"
-          description="Ваше имя больше не будет привязано к Telegram."
-          danger
-          onConfirm={handleUnbind}
-          onCancel={() => setShowUnbindConfirm(false)}
-        />
-      )}
-
       {showBindModal && (
         <div className="modal-overlay">
           <div className="card card-modal">
-            <h3 className="modal-title">🔗 Привязка аккаунта</h3>
-            <p className="modal-desc">Введите имя, которое будут видеть другие игроки</p>
+            <h3 className="modal-title">👤 Укажите имя</h3>
+            <p className="modal-desc">Это имя будут видеть другие игроки</p>
             {bindError && <p className="error-text">{bindError}</p>}
             <input
               className="input"
@@ -171,11 +141,14 @@ export function SettingsPage() {
             />
             <div className="modal-actions mt-16">
               <button className="btn btn-primary btn-small" style={{ flex: 1 }} onClick={handleBind} disabled={!bindName.trim()}>
-                Привязать
+                Сохранить
               </button>
-              <button className="btn btn-secondary btn-small" style={{ flex: 1 }} onClick={() => setShowBindModal(false)}>
-                Отмена
-              </button>
+              {/* Скрываем отмену при первом входе, чтобы заставить ввести имя */}
+              {userProfile?.name && (
+                <button className="btn btn-secondary btn-small" style={{ flex: 1 }} onClick={() => setShowBindModal(false)}>
+                  Отмена
+                </button>
+              )}
             </div>
           </div>
         </div>

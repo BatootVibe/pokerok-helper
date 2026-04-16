@@ -193,13 +193,10 @@ function requireTelegramAuth(req, res, next) {
   // Находим или создаём пользователя, получаем внутренний user_id
   let userRow = db.prepare('SELECT id, tg_id, player_name FROM users WHERE tg_id = ?').get(tgId);
   if (!userRow) {
-    // Новый пользователь — создаём запись
-    const defaultName = verified.user.username
-      || verified.user.first_name
-      || `user_${tgId.slice(-6)}`;
+    // Новый пользователь — создаём с пустым именем (фронтенд запросит его ввод)
     try {
-      const result = db.prepare('INSERT INTO users (tg_id, player_name) VALUES (?, ?)').run(tgId, defaultName);
-      userRow = { id: result.lastInsertRowid, tg_id: tgId, player_name: defaultName };
+      const result = db.prepare('INSERT INTO users (tg_id, player_name) VALUES (?, NULL)').run(tgId);
+      userRow = { id: result.lastInsertRowid, tg_id: tgId, player_name: null };
     } catch (err) {
       // Race condition: другой запрос уже создал пользователя
       if (err.message.includes('UNIQUE')) {
