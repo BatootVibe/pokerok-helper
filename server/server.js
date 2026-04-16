@@ -464,9 +464,22 @@ app.put('/api/users', requireTelegramAuth, strictLimiter, (req, res) => {
   }
 
   try {
+    const oldName = db.prepare('SELECT player_name FROM users WHERE id = ?').get(userId)?.player_name;
     const tx = db.transaction(() => {
       db.prepare('UPDATE users SET player_name = ? WHERE id = ?').run(sanitizedName, userId);
       db.prepare('UPDATE game_results SET player_name = ? WHERE user_id = ?').run(sanitizedName, userId);
+      if (oldName && oldName !== sanitizedName) {
+        const rows = db.prepare('SELECT id, players FROM scheduled_games').all();
+        for (const row of rows) {
+          try {
+            const players = JSON.parse(row.players);
+            const updated = players.map((p: string) => p === oldName ? sanitizedName : p);
+            if (players.some((p: string, i: number) => updated[i] !== p)) {
+              db.prepare('UPDATE scheduled_games SET players = ? WHERE id = ?').run(JSON.stringify(updated), row.id);
+            }
+          } catch {}
+        }
+      }
     });
     tx();
     res.json({ name: sanitizedName });
