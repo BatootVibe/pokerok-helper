@@ -60,7 +60,6 @@ db.exec(`
   );
 
   CREATE INDEX IF NOT EXISTS idx_results_game ON game_results(game_id);
-  CREATE INDEX IF NOT EXISTS idx_games_owner ON games(owner_user_id);
 
   CREATE TABLE IF NOT EXISTS scheduled_games (
     id TEXT PRIMARY KEY,
@@ -83,6 +82,7 @@ try { db.exec('ALTER TABLE games ADD COLUMN owner_user_id INTEGER;'); } catch { 
 try { db.exec('ALTER TABLE presets ADD COLUMN owner_user_id INTEGER;'); } catch { /* already exists */ }
 try { db.exec('ALTER TABLE scheduled_games ADD COLUMN owner_user_id INTEGER;'); } catch { /* already exists */ }
 try { db.exec('ALTER TABLE game_results ADD COLUMN user_id INTEGER;'); } catch { /* already exists */ }
+try { db.exec('CREATE INDEX IF NOT EXISTS idx_games_owner ON games(owner_user_id);'); } catch { /* already exists */ }
 try { db.exec('CREATE INDEX IF NOT EXISTS idx_results_user ON game_results(user_id);'); } catch { /* already exists */ }
 
 const app = express();
