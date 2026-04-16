@@ -5,9 +5,10 @@ import crypto from 'crypto';
 import Database from 'better-sqlite3';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import 'dotenv/config';
+import dotenv from 'dotenv';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.join(__dirname, '.env') });
 const db = new Database(path.join(__dirname, 'poker.db'));
 
 // Включаем WAL mode для лучшей конкурентности
@@ -91,6 +92,8 @@ const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
   'http://127.0.0.1:5173',
+  'https://web.telegram.org',
+  'https://t.me',
   'https://batoot-pokerok-helper.fun',
   ...(process.env.ALLOWED_ORIGINS || '').split(',').filter(Boolean),
 ];
@@ -636,5 +639,7 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
+  const tokenOk = !!process.env.TELEGRAM_BOT_TOKEN;
   console.log(`Server running on port ${PORT}`);
+  console.log(`TELEGRAM_BOT_TOKEN: ${tokenOk ? 'loaded' : 'MISSING — mutations will fail!'}`);
 });
