@@ -74,6 +74,7 @@ export function HistoryPage() {
             onDelete={() => isBound && handleDeleteGame(game.id)}
             isVerified={isVerified}
             isBound={isBound}
+            currentTgId={currentTgId}
           />
         ))
       )}
@@ -94,19 +95,21 @@ export function HistoryPage() {
 
 // === Sub-components ===
 
-function GameEntry({ game, isExpanded, onToggle, onDelete, isVerified, isBound }: {
+function GameEntry({ game, isExpanded, onToggle, onDelete, isVerified, isBound, currentTgId }: {
   game: CompletedGame;
   isExpanded: boolean;
   onToggle: () => void;
   onDelete: () => void;
   isVerified: (userId?: number) => boolean;
   isBound: boolean;
+  currentTgId: string | null;
 }) {
   const [activeTab, setActiveTab] = useState<'results' | 'debts'>('results');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const transfers = useMemo(() => calculateDebts(game.players), [game.players]);
   const verifiedNames = useMemo(() => new Set(game.players.filter(p => p.userId).map(p => p.playerName)), [game.players]);
+  const isParticipant = currentTgId ? game.players.some(p => String(p.tgId) === currentTgId) : false;
 
   return (
     <div className="history-entry">
@@ -167,7 +170,7 @@ function GameEntry({ game, isExpanded, onToggle, onDelete, isVerified, isBound }
             </div>
           )}
 
-          {isBound && (
+          {isBound && isParticipant && (
             <div className="full-width">
               <button className="btn btn-danger btn-small" onClick={() => setShowDeleteConfirm(true)}>
                 Удалить запись

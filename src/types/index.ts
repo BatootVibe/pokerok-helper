@@ -67,13 +67,14 @@ export interface Game {
 export interface GameResult {
   playerId: string;
   playerName: string;
-  userId?: number; // внутренний ID пользователя на момент сохранения результата
-  buyInQty: number; // количество бай-инов (всегда 1)
-  rebuyQty: number; // количество ребай
-  wasChips: number; // Было: стартовые × (buyInQty + rebuyQty)
-  becameChips: number; // Стало: Σ(фишки × номинал)
-  rubles: number; // Стало × цена_очка
-  spentRubles: number; // Buy-in × (buyInQty + rebuyQty)
+  userId?: number;
+  tgId?: string;
+  buyInQty: number;
+  rebuyQty: number;
+  wasChips: number;
+  becameChips: number;
+  rubles: number;
+  spentRubles: number;
 }
 
 export interface CompletedGame {
