@@ -16,74 +16,26 @@ db.pragma('journal_mode = WAL');
 
 // === Настройка БД ===
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    tg_id TEXT NOT NULL UNIQUE,
-    player_name TEXT
-  );
-
-  CREATE TABLE IF NOT EXISTS games (
-    id TEXT PRIMARY KEY,
-    date TEXT NOT NULL,
-    finished_at TEXT NOT NULL DEFAULT '',
-    venue TEXT NOT NULL DEFAULT '',
-    owner_user_id INTEGER,
-    starting_chips INTEGER NOT NULL,
-    buy_in_rubles REAL NOT NULL,
-    chip_price_rubles REAL NOT NULL,
-    FOREIGN KEY (owner_user_id) REFERENCES users(id)
-  );
-
-  CREATE TABLE IF NOT EXISTS game_results (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    game_id TEXT NOT NULL,
-    player_id TEXT NOT NULL,
-    player_name TEXT NOT NULL,
-    user_id INTEGER,
-    buy_in_qty INTEGER NOT NULL DEFAULT 1,
-    rebuy_qty INTEGER NOT NULL DEFAULT 0,
-    was_chips INTEGER NOT NULL,
-    became_chips INTEGER NOT NULL,
-    rubles REAL NOT NULL,
-    spent_rubles REAL NOT NULL,
-    FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users(id)
-  );
-
-  CREATE TABLE IF NOT EXISTS presets (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    chips TEXT NOT NULL,
-    owner_user_id INTEGER,
-    FOREIGN KEY (owner_user_id) REFERENCES users(id)
-  );
-
-  CREATE INDEX IF NOT EXISTS idx_results_game ON game_results(game_id);
-
-  CREATE TABLE IF NOT EXISTS scheduled_games (
-    id TEXT PRIMARY KEY,
-    venue TEXT NOT NULL,
-    scheduled_at TEXT NOT NULL,
-    players TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    owner_user_id INTEGER,
-    FOREIGN KEY (owner_user_id) REFERENCES users(id)
-  );
-
-  CREATE TABLE IF NOT EXISTS venues (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL UNIQUE
-  );
-`);
+db.exec(`CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, tg_id TEXT NOT NULL UNIQUE, player_name TEXT)`);
+db.exec(`CREATE TABLE IF NOT EXISTS games (id TEXT PRIMARY KEY, date TEXT NOT NULL, finished_at TEXT NOT NULL DEFAULT '', venue TEXT NOT NULL DEFAULT '', starting_chips INTEGER NOT NULL, buy_in_rubles REAL NOT NULL, chip_price_rubles REAL NOT NULL)`);
+db.exec(`CREATE TABLE IF NOT EXISTS game_results (id INTEGER PRIMARY KEY AUTOINCREMENT, game_id TEXT NOT NULL, player_id TEXT NOT NULL, player_name TEXT NOT NULL, buy_in_qty INTEGER NOT NULL DEFAULT 1, rebuy_qty INTEGER NOT NULL DEFAULT 0, was_chips INTEGER NOT NULL, became_chips INTEGER NOT NULL, rubles REAL NOT NULL, spent_rubles REAL NOT NULL, FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE)`);
+db.exec(`CREATE TABLE IF NOT EXISTS presets (id TEXT PRIMARY KEY, name TEXT NOT NULL, chips TEXT NOT NULL)`);
+db.exec(`CREATE TABLE IF NOT EXISTS scheduled_games (id TEXT PRIMARY KEY, venue TEXT NOT NULL, scheduled_at TEXT NOT NULL, players TEXT NOT NULL, created_at TEXT NOT NULL)`);
+db.exec(`CREATE TABLE IF NOT EXISTS venues (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE)`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_results_game ON game_results(game_id)`);
 
 // Миграции для старых БД
-try { db.exec('ALTER TABLE games ADD COLUMN owner_user_id INTEGER;'); } catch { /* already exists */ }
-try { db.exec('ALTER TABLE presets ADD COLUMN owner_user_id INTEGER;'); } catch { /* already exists */ }
-try { db.exec('ALTER TABLE scheduled_games ADD COLUMN owner_user_id INTEGER;'); } catch { /* already exists */ }
-try { db.exec('ALTER TABLE game_results ADD COLUMN user_id INTEGER;'); } catch { /* already exists */ }
-try { db.exec('CREATE INDEX IF NOT EXISTS idx_games_owner ON games(owner_user_id);'); } catch { /* already exists */ }
-try { db.exec('CREATE INDEX IF NOT EXISTS idx_results_user ON game_results(user_id);'); } catch { /* already exists */ }
+try { db.exec('ALTER TABLE games ADD COLUMN owner_user_id INTEGER'); } catch {}
+try { db.exec('ALTER TABLE presets ADD COLUMN owner_user_id INTEGER'); } catch {}
+try { db.exec('ALTER TABLE scheduled_games ADD COLUMN owner_user_id INTEGER'); } catch {}
+try { db.exec('ALTER TABLE game_results ADD COLUMN user_id INTEGER'); } catch {}
+try { db.exec('CREATE INDEX IF NOT EXISTS idx_games_owner ON games(owner_user_id)'); } catch {}
+try { db.exec('CREATE INDEX IF NOT EXISTS idx_results_user ON game_results(user_id)'); } catch {}
+try { db.exec('ALTER TABLE game_results ADD FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE'); } catch {}
+try { db.exec('ALTER TABLE game_results ADD FOREIGN KEY (user_id) REFERENCES users(id)'); } catch {}
+try { db.exec('ALTER TABLE games ADD FOREIGN KEY (owner_user_id) REFERENCES users(id)'); } catch {}
+try { db.exec('ALTER TABLE presets ADD FOREIGN KEY (owner_user_id) REFERENCES users(id)'); } catch {}
+try { db.exec('ALTER TABLE scheduled_games ADD FOREIGN KEY (owner_user_id) REFERENCES users(id)'); } catch {}
 
 const app = express();
 
