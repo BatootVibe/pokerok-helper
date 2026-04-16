@@ -473,8 +473,8 @@ app.put('/api/users', requireTelegramAuth, strictLimiter, (req, res) => {
         for (const row of rows) {
           try {
             const players = JSON.parse(row.players);
-            const updated = players.map((p: string) => p === oldName ? sanitizedName : p);
-            if (players.some((p: string, i: number) => updated[i] !== p)) {
+            const updated = players.map(p => p === oldName ? sanitizedName : p);
+            if (players.some((p, i) => updated[i] !== p)) {
               db.prepare('UPDATE scheduled_games SET players = ? WHERE id = ?').run(JSON.stringify(updated), row.id);
             }
           } catch {}
