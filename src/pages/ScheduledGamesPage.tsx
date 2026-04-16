@@ -6,6 +6,7 @@ import { HeaderBack } from '../components/HeaderBack';
 import { formatDate, formatTime, isPast } from '../utils/date';
 import { NEARBY_GAME_MARGIN } from '../utils/constants';
 import { PlayerAutocomplete, Player } from '../components/PlayerAutocomplete';
+import { useVerifiedPlayers } from '../utils/hooks';
 
 // === Main Page ===
 
@@ -35,6 +36,8 @@ export function ScheduledGamesPage() {
       getUserProfile().then(profile => setIsBound(!!profile));
     }
   }, [currentTgId]);
+
+  const { verifiedNames } = useVerifiedPlayers();
 
   // ---- Data loading ----
 
@@ -189,7 +192,7 @@ export function ScheduledGamesPage() {
       ) : sorted.length > 0 ? (
         <div className="mt-16">
           {sorted.map(game => (
-            <ScheduledEntry key={game.id} game={game} onEdit={() => isBound && openEditForm(game)} canEdit={isBound} />
+            <ScheduledEntry key={game.id} game={game} onEdit={() => isBound && openEditForm(game)} canEdit={isBound} verifiedNames={verifiedNames} />
           ))}
           {isBound && (
             <p className="page-hint text-center">Удерживайте карточку 2 сек для редактирования</p>
@@ -361,7 +364,7 @@ function VenueSelector({
 
 // === Scheduled Entry Card ===
 
-function ScheduledEntry({ game, onEdit, canEdit }: { game: ScheduledGame; onEdit: () => void; canEdit: boolean }) {
+function ScheduledEntry({ game, onEdit, canEdit, verifiedNames }: { game: ScheduledGame; onEdit: () => void; canEdit: boolean; verifiedNames: Set<string> }) {
   const holdTimerRef = useRef<number | null>(null);
   const [isHolding, setIsHolding] = useState(false);
 
@@ -415,7 +418,13 @@ function ScheduledEntry({ game, onEdit, canEdit }: { game: ScheduledGame; onEdit
               : 'Дата не указана'}
           </div>
           <div className="scheduled-players text-muted">
-            {safePlayers.join(', ') || 'Нет игроков'}
+            {safePlayers.length > 0
+              ? safePlayers.map((name, i) => (
+                  <span key={i} className={verifiedNames.has(name) ? 'verified-player' : ''}>
+                    {name}{i < safePlayers.length - 1 ? ', ' : ''}
+                  </span>
+                ))
+              : 'Нет игроков'}
           </div>
         </div>
       </div>

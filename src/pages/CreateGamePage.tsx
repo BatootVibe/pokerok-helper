@@ -5,11 +5,13 @@ import { loadPresets, loadVenues, saveVenue, deleteVenue, loadGameHistory, findN
 import { HeaderBack } from '../components/HeaderBack';
 import { ChipPreset } from '../types';
 import { PlayerAutocomplete, Player } from '../components/PlayerAutocomplete';
+import { useVerifiedPlayers } from '../utils/hooks';
 
 export function CreateGamePage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { createGame } = useGame();
+  const { verifiedNames } = useVerifiedPlayers();
 
   // Состояние игроков (теперь объекты)
   const [players, setPlayers] = useState<Player[]>([]);
@@ -224,7 +226,13 @@ export function CreateGamePage() {
           <div className="nearby-game-prompt">
             <div className="nearby-game-info">
               <span className="nearby-game-venue">📍 {nearbyGame.venue}</span>
-              <span className="nearby-game-players">{nearbyGame.players.join(', ')}</span>
+              <span className="nearby-game-players">
+                {nearbyGame.players.map((name, i) => (
+                  <span key={i} className={verifiedNames.has(name) ? 'verified-player' : ''}>
+                    {name}{i < nearbyGame.players.length - 1 ? ', ' : ''}
+                  </span>
+                ))}
+              </span>
             </div>
             <div className="nearby-game-actions">
               <button className="btn btn-primary btn-small" onClick={useNearbyData}>Играть</button>

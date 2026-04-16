@@ -16,6 +16,11 @@ export function ResultsPage() {
   const [activeTab, setActiveTab] = useState<'results' | 'debts'>('results');
   const { isVerified } = useVerifiedPlayers();
 
+  const verifiedNames = useMemo(() => {
+    if (!results) return new Set<string>();
+    return new Set(results.filter(r => r.userId).map(r => r.playerName));
+  }, [results]);
+
   // Auth state
   const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
   const currentTgId = tgUser ? String(tgUser.id) : null;
@@ -158,10 +163,10 @@ export function ResultsPage() {
                   {transfers.map((t, i) => (
                     <tr key={i}>
                       <td>
-                        <span>{t.from}</span>
+                        <span className={verifiedNames.has(t.from) ? 'verified-player' : ''}>{t.from}</span>
                       </td>
                       <td>
-                        <span>{t.to}</span>
+                        <span className={verifiedNames.has(t.to) ? 'verified-player' : ''}>{t.to}</span>
                       </td>
                       <td className="result-negative">{t.amount} ₽</td>
                     </tr>

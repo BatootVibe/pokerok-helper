@@ -59,7 +59,7 @@ export function AnalyticsPage() {
     const playerMap = new Map<string, PlayerStat>();
 
     history.forEach(game => {
-      game.players.forEach(p => {
+      game.players.filter(p => p.userId).forEach(p => {
         const profit = p.rubles - p.spentRubles;
 
         if (!playerMap.has(p.playerName)) {

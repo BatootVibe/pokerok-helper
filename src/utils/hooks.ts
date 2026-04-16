@@ -8,43 +8,43 @@ import { LOCAL_USER_PROFILE_KEY } from './constants';
  */
 export function useVerifiedPlayers() {
   const [verifiedIds, setVerifiedIds] = useState<Set<number>>(new Set());
+  const [verifiedNames, setVerifiedNames] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    // 1. Сначала пробуем API
     apiGet<{ name: string; id: number }[]>('/api/players')
       .then(players => {
         const ids = new Set<number>();
+        const names = new Set<string>();
         for (const p of players) {
-          if (p.id) {
-            ids.add(p.id);
-          }
+          if (p.id) ids.add(p.id);
+          if (p.name) names.add(p.name);
         }
         setVerifiedIds(ids);
+        setVerifiedNames(names);
       })
       .catch(() => {
-        // 2. Fallback: загружаем из localStorage
         const ids = new Set<number>();
+        const names = new Set<string>();
         for (let i = 0; i < localStorage.length; i++) {
           const key = localStorage.key(i);
           if (key && key.startsWith(LOCAL_USER_PROFILE_KEY)) {
             try {
               const profile = JSON.parse(localStorage.getItem(key) || '');
-              if (profile && profile.userId) {
-                ids.add(profile.userId);
-              }
+              if (profile && profile.userId) ids.add(profile.userId);
+              if (profile && profile.name) names.add(profile.name);
             } catch {
               // ignore
             }
           }
         }
         setVerifiedIds(ids);
+        setVerifiedNames(names);
       });
   }, []);
 
-  // Проверяем по ID, а не по имени
   const isVerified = useCallback((userId?: number): boolean => {
     return !!userId && verifiedIds.has(userId);
   }, [verifiedIds]);
 
-  return { isVerified, verifiedIds };
+  return { isVerified, verifiedIds, verifiedNames };
 }

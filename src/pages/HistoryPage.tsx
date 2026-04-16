@@ -106,6 +106,7 @@ function GameEntry({ game, isExpanded, onToggle, onDelete, isVerified, isBound }
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const transfers = useMemo(() => calculateDebts(game.players), [game.players]);
+  const verifiedNames = useMemo(() => new Set(game.players.filter(p => p.userId).map(p => p.playerName)), [game.players]);
 
   return (
     <div className="history-entry">
@@ -153,9 +154,9 @@ function GameEntry({ game, isExpanded, onToggle, onDelete, isVerified, isBound }
                 transfers.map((t, i) => (
                   <div key={i} className="player-result debt-card">
                     <div className="debt-players">
-                      <span>{t.from}</span>
+                      <span className={verifiedNames.has(t.from) ? 'verified-player' : ''}>{t.from}</span>
                       <span className="debt-arrow">→</span>
-                      <span>{t.to}</span>
+                      <span className={verifiedNames.has(t.to) ? 'verified-player' : ''}>{t.to}</span>
                     </div>
                     <div className="result-negative debt-amount">{t.amount} ₽</div>
                   </div>
