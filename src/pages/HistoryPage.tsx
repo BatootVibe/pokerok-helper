@@ -198,11 +198,8 @@ function GameEntry({ game, isExpanded, onToggle, onDelete, isVerified, isBound, 
 }
 
 function PlayerResult({ player, isVerified }: { player: CompletedGame['players'][number]; isVerified: boolean }) {
-  const isZero = player.becameChips === 0;
-  const displayRubles = isZero ? -player.spentRubles : player.rubles;
   const diff = player.rubles - player.spentRubles;
-  const isPositive = displayRubles > 0;
-  const rubleClass = isPositive ? 'result-positive' : 'result-negative';
+  const rubleClass = diff > 0 ? 'result-positive' : diff < 0 ? 'result-negative' : '';
 
   return (
     <div className="player-result">
@@ -210,8 +207,7 @@ function PlayerResult({ player, isVerified }: { player: CompletedGame['players']
         {player.playerName}
       </div>
       <div className={rubleClass}>
-        {displayRubles.toFixed(0)} ₽
-        {!isZero && <span> ({diff > 0 ? '+' : ''}{diff.toFixed(0)} ₽)</span>}
+        {diff > 0 ? '+' : ''}{diff.toFixed(0)} ₽
       </div>
       <div className="player-result-meta">
         BI:{player.buyInQty} / RB:{player.rebuyQty}

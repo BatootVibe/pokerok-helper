@@ -455,6 +455,11 @@ body::before {
   touch-action: manipulation;
 }
 
+.rebuy-btn-holding {
+  background: var(--accent-red) !important;
+  color: #fff !important;
+}
+
 .player-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

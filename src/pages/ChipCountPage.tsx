@@ -119,12 +119,22 @@ export function ChipCountPage() {
   };
 
   const isPlayerFilled = (playerId: string): boolean => {
-    const inputs = chipInputs[playerId] || {};
-    return Object.values(inputs).some(v => v > 0);
+    return playerId in chipInputs;
   };
 
   const filledCount = currentGame.players.filter(p => isPlayerFilled(p.id)).length;
   const allFilled = filledCount === currentGame.players.length;
+
+  const openAccordion = (playerId: string) => {
+    if (expandedPlayerId === playerId) {
+      setExpandedPlayerId(null);
+    } else {
+      setExpandedPlayerId(playerId);
+      if (!(playerId in chipInputs)) {
+        setChipInputs(prev => ({ ...prev, [playerId]: {} }));
+      }
+    }
+  };
 
   return (
     <div className="page">
@@ -145,7 +155,7 @@ export function ChipCountPage() {
 
         return (
           <div key={player.id} className={`card chip-accordion ${isExpanded ? 'chip-accordion-expanded' : ''} ${filled ? 'chip-accordion-filled' : ''}`}>
-            <div className="chip-accordion-header" onClick={() => setExpandedPlayerId(isExpanded ? null : player.id)}>
+            <div className="chip-accordion-header" onClick={() => openAccordion(player.id)}>
               <div className="chip-accordion-info">
                 <span className={player.userId ? 'verified-player' : ''}>{player.name}</span>
                 <span className="text-muted text-sm">

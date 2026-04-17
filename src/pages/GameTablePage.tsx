@@ -13,9 +13,11 @@ export function GameTablePage() {
   const { currentGame, addPlayer, incrementRebuy, decrementRebuy, finishGame } = useGame();
   const [players, setPlayers] = useState<Player[]>([]);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [holdingId, setHoldingId] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const holdTimerRef = useRef<number | null>(null);
   const holdFiredRef = useRef(false);
+  const touchUsedRef = useRef(false);
 
   useEffect(() => {
     if (!currentGame) return;
@@ -28,9 +30,11 @@ export function GameTablePage() {
 
   const startHold = useCallback((playerId: string) => {
     holdFiredRef.current = false;
+    setHoldingId(playerId);
     holdTimerRef.current = window.setTimeout(() => {
       holdTimerRef.current = null;
       holdFiredRef.current = true;
+      setHoldingId(null);
       if (decrementRebuy) decrementRebuy(playerId);
     }, HOLD_DURATION);
   }, [decrementRebuy]);
@@ -43,6 +47,7 @@ export function GameTablePage() {
         incrementRebuy(playerId);
       }
     }
+    setHoldingId(null);
   }, [incrementRebuy]);
 
   const cancelHold = useCallback(() => {
@@ -50,6 +55,7 @@ export function GameTablePage() {
       clearTimeout(holdTimerRef.current);
       holdTimerRef.current = null;
     }
+    setHoldingId(null);
   }, []);
 
   if (!currentGame) {
@@ -104,16 +110,16 @@ export function GameTablePage() {
                   </div>
                 </div>
                 <button
-                  className="btn btn-primary rebuy-btn"
-                  onMouseDown={() => startHold(player.id)}
-                  onMouseUp={() => endHold(player.id)}
+                  className={`btn btn-primary rebuy-btn ${holdingId === player.id ? 'rebuy-btn-holding' : ''}`}
+                  onMouseDown={() => { if (!touchUsedRef.current) startHold(player.id); }}
+                  onMouseUp={() => { if (!touchUsedRef.current) endHold(player.id); touchUsedRef.current = false; }}
                   onMouseLeave={cancelHold}
-                  onTouchStart={() => startHold(player.id)}
-                  onTouchEnd={() => endHold(player.id)}
+                  onTouchStart={() => { touchUsedRef.current = true; startHold(player.id); }}
+                  onTouchEnd={() => { endHold(player.id); }}
                   onTouchCancel={cancelHold}
                   onTouchMove={(e) => { e.preventDefault(); cancelHold(); }}
                 >
-                  + Ребай
+                  {holdingId === player.id ? '- Ребай' : '+ Ребай'}
                 </button>
               </div>
             ))}
