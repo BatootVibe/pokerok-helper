@@ -122,9 +122,6 @@ export function ChipCountPage() {
     return playerId in chipInputs;
   };
 
-  const filledCount = currentGame.players.filter(p => isPlayerFilled(p.id)).length;
-  const allFilled = filledCount === currentGame.players.length;
-
   const openAccordion = (playerId: string) => {
     if (expandedPlayerId === playerId) {
       setExpandedPlayerId(null);
@@ -139,13 +136,6 @@ export function ChipCountPage() {
   return (
     <div className="page">
       <HeaderBack title="Подсчёт фишек" />
-
-      <div className="chip-progress-bar">
-        <div className="chip-progress-text">{filledCount}/{currentGame.players.length} введено</div>
-        <div className="chip-progress-track">
-          <div className="chip-progress-fill" style={{ width: `${(filledCount / currentGame.players.length) * 100}%` }} />
-        </div>
-      </div>
 
       {currentGame.players.map(player => {
         const isExpanded = expandedPlayerId === player.id;
@@ -201,8 +191,8 @@ export function ChipCountPage() {
       })}
 
       <div className="fixed-actions">
-        <button className="btn btn-success" onClick={goResults} disabled={!allFilled}>
-          📊 Рассчитать{!allFilled && ` (${filledCount}/${currentGame.players.length})`}
+        <button className="btn btn-success" onClick={goResults}>
+          📊 Рассчитать
         </button>
       </div>
     </div>
