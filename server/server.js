@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import crypto from 'crypto';
+import https from 'https';
 import Database from 'better-sqlite3';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -59,25 +60,41 @@ try {
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 
 async function sendTelegramMessage(tgId, text) {
-  if (!BOT_TOKEN) return;
-  try {
-    const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: tgId, text, parse_mode: 'HTML' }),
-    });
-    if (!res.ok) {
-      const err = await res.text();
-      console.error('Telegram API error:', err);
-    }
-  } catch (e) {
-    console.error('Failed to send Telegram message:', e.message);
+  if (!BOT_TOKEN) {
+    console.warn('[notify] TELEGRAM_BOT_TOKEN not set, skipping message');
+    return;
   }
+  return new Promise((resolve) => {
+    const payload = JSON.stringify({ chat_id: tgId, text, parse_mode: 'HTML' });
+    const req = https.request({
+      hostname: 'api.telegram.org',
+      path: `/bot${BOT_TOKEN}/sendMessage`,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) },
+    }, (res) => {
+      let body = '';
+      res.on('data', (d) => { body += d; });
+      res.on('end', () => {
+        if (res.statusCode !== 200) {
+          console.error('[notify] Telegram API error:', res.statusCode, body);
+        }
+        resolve();
+      });
+    });
+    req.on('error', (e) => {
+      console.error('[notify] Failed to send Telegram message:', e.message);
+      resolve();
+    });
+    req.write(payload);
+    req.end();
+  });
 }
 
 async function sendGameResultsToPlayers(gameId) {
-  if (!BOT_TOKEN) return;
+  if (!BOT_TOKEN) {
+    console.warn('[notify] TELEGRAM_BOT_TOKEN not set, skipping game results');
+    return;
+  }
   const game = db.prepare('SELECT * FROM games WHERE id = ?').get(gameId);
   if (!game) return;
   const results = db.prepare('SELECT * FROM game_results WHERE game_id = ?').all(gameId);
@@ -95,6 +112,7 @@ async function sendGameResultsToPlayers(gameId) {
     if (r.user_id) {
       const user = db.prepare('SELECT tg_id FROM users WHERE id = ?').get(r.user_id);
       if (user?.tg_id) {
+        console.log(`[notify] Sending results to tg_id=${user.tg_id}`);
         await sendTelegramMessage(user.tg_id, text);
       }
     }
@@ -130,13 +148,17 @@ function checkScheduledReminders() {
         const already = db.prepare('SELECT 1 FROM notifications_sent WHERE scheduled_game_id = ? AND type = ?').get(sg.id, r.type);
         if (already) continue;
 
+        console.log(`[notify] Sending ${r.type} reminder for game ${sg.id} at ${sg.venue}`);
         const playerNames = players.join(', ') || '—';
         const msg = `⏰ <b>Напоминание!</b>\nИгра ${r.label}\n📍 ${sg.venue || 'Не указано'}\n👤 ${playerNames}`;
 
         for (const name of players) {
           const user = db.prepare('SELECT tg_id FROM users WHERE player_name = ?').get(name);
           if (user?.tg_id) {
+            console.log(`[notify] Sending to ${name} (tg_id=${user.tg_id})`);
             sendTelegramMessage(user.tg_id, msg);
+          } else {
+            console.log(`[notify] No tg_id for player "${name}"`);
           }
         }
 

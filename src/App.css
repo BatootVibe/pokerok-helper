@@ -455,29 +455,6 @@ body::before {
   touch-action: manipulation;
 }
 
-.rebuy-btn-holding {
-  background: var(--accent-red) !important;
-  color: #fff !important;
-  transition: background 0.15s;
-  position: relative;
-  overflow: hidden;
-}
-
-.rebuy-btn-holding::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  height: 3px;
-  background: rgba(255,255,255,0.6);
-  animation: hold-progress 0.6s linear forwards;
-}
-
-@keyframes hold-progress {
-  from { width: 0; }
-  to { width: 100%; }
-}
-
 .player-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -668,23 +645,6 @@ body::before {
   outline: 2px solid var(--accent-gold);
   outline-offset: -4px;
   transition: background-color 0.15s ease, outline 0.15s ease;
-  position: relative;
-  overflow: hidden;
-}
-
-.preset-card.holding::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  height: 3px;
-  background: var(--accent-gold);
-  animation: hold-progress-2s 2s linear forwards;
-}
-
-@keyframes hold-progress-2s {
-  from { width: 0; }
-  to { width: 100%; }
 }
 
 .preset-card-header {
@@ -1542,25 +1502,6 @@ body::before {
   line-height: 1;
 }
 
-.hold-progress-bar {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(to right, rgba(255,71,87,0.3) 100%, transparent 100%);
-  pointer-events: none;
-  transition: width 0.03s linear;
-}
-
-.hold-spinner {
-  transform: rotate(-90deg);
-  flex-shrink: 0;
-  display: inline-block;
-  line-height: 1;
-}
-
-.hold-spinner-progress {
-  transition: stroke-dashoffset 0.03s linear;
-}
-
 /* === Scheduled === */
 
 .scheduled-entry {
@@ -1575,23 +1516,6 @@ body::before {
   outline: 2px solid var(--accent-gold);
   outline-offset: -4px;
   transition: background-color 0.15s ease, outline 0.15s ease;
-  position: relative;
-  overflow: hidden;
-}
-
-.scheduled-entry.holding::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  height: 3px;
-  background: var(--accent-gold);
-  animation: hold-progress-3s 3s linear forwards;
-}
-
-@keyframes hold-progress-3s {
-  from { width: 0; }
-  to { width: 100%; }
 }
 
 .admin-data-actions {

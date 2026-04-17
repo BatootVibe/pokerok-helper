@@ -112,30 +112,25 @@ export function ResultsPage() {
                   <th>Рубли</th>
                 </tr>
               </thead>
-              <tbody>
-                {results.map(result => {
-                  const diff = result.rubles - result.spentRubles;
-                  const isPositive = diff > 0;
-                  const rubleClass = isPositive ? 'result-positive' : diff < 0 ? 'result-negative' : '';
-                  const displayRubles = result.becameChips === 0
-                    ? -result.spentRubles
-                    : result.rubles;
+               <tbody>
+                 {results.map(result => {
+                   const diff = result.rubles - result.spentRubles;
+                   const rubleClass = diff > 0 ? 'result-positive' : diff < 0 ? 'result-negative' : '';
 
-                  return (
-                    <tr key={result.playerId}>
-                      <td className="font-semibold">
-                        <span className={isVerified(result.userId) ? 'verified-player' : ''}>
-                          {result.playerName}
-                        </span>
-                      </td>
-                      <td>{result.wasChips} pts</td>
-                      <td>{result.becameChips} pts</td>
-                      <td className={rubleClass}>
-                        {displayRubles.toFixed(0)} ₽
-                        <span className="diff-text"> ({diff > 0 ? '+' : ''}{diff.toFixed(0)} ₽)</span>
-                      </td>
-                    </tr>
-                  );
+                   return (
+                     <tr key={result.playerId}>
+                       <td className="font-semibold">
+                         <span className={isVerified(result.userId) ? 'verified-player' : ''}>
+                           {result.playerName}
+                         </span>
+                       </td>
+                       <td>{result.wasChips} pts</td>
+                       <td>{result.becameChips} pts</td>
+                       <td className={rubleClass}>
+                         {diff > 0 ? '+' : ''}{diff.toFixed(0)} ₽
+                       </td>
+                     </tr>
+                   );
                 })}
               </tbody>
               <tfoot>
