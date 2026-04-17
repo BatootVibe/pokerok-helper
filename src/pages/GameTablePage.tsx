@@ -1,15 +1,50 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGame } from '../context/GameContext';
 import { HeaderHome } from '../components/HeaderBack';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { PlayerAutocomplete, Player } from '../components/PlayerAutocomplete';
 
+const HOLD_DURATION = 600;
+
 export function GameTablePage() {
   const navigate = useNavigate();
-  const { currentGame, addPlayer, incrementRebuy, finishGame } = useGame();
+  const { currentGame, addPlayer, incrementRebuy, decrementRebuy, finishGame } = useGame();
   const [players, setPlayers] = useState<Player[]>([]);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [holdingId, setHoldingId] = useState<string | null>(null);
+  const holdTimerRef = useRef<number | null>(null);
+  const holdFiredRef = useRef(false);
+
+  const startHold = useCallback((playerId: string) => {
+    holdFiredRef.current = false;
+    setHoldingId(playerId);
+    holdTimerRef.current = window.setTimeout(() => {
+      holdTimerRef.current = null;
+      holdFiredRef.current = true;
+      setHoldingId(null);
+      if (decrementRebuy) decrementRebuy(playerId);
+    }, HOLD_DURATION);
+  }, [decrementRebuy]);
+
+  const endHold = useCallback((playerId: string) => {
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+      if (!holdFiredRef.current) {
+        incrementRebuy(playerId);
+      }
+    }
+    setHoldingId(null);
+  }, [incrementRebuy]);
+
+  const cancelHold = useCallback(() => {
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+    setHoldingId(null);
+  }, []);
 
   if (!currentGame) {
     return (
@@ -64,10 +99,15 @@ export function GameTablePage() {
                   </div>
                 </div>
                 <button
-                  className="btn btn-primary rebuy-btn"
-                  onClick={() => incrementRebuy(player.id)}
+                  className={`btn btn-primary rebuy-btn ${holdingId === player.id ? 'rebuy-btn-holding' : ''}`}
+                  onMouseDown={() => startHold(player.id)}
+                  onMouseUp={() => endHold(player.id)}
+                  onMouseLeave={cancelHold}
+                  onTouchStart={() => startHold(player.id)}
+                  onTouchEnd={() => endHold(player.id)}
+                  onTouchCancel={cancelHold}
                 >
-                  + Ребай
+                  {holdingId === player.id ? '- Ребай' : '+ Ребай'}
                 </button>
               </div>
             ))}
