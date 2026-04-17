@@ -89,15 +89,6 @@ export interface CompletedGame {
   chipPriceRubles: number;
 }
 
-export interface FinishedPlayerChips {
-  playerId: string;
-  white: number;
-  red: number;
-  blue: number;
-  green: number;
-  black: number;
-}
-
 export interface ScheduledGame {
   id: string;
   venue: string;

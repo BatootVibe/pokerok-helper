@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { GameProvider } from './context/GameContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { RequireGame } from './components/RequireGame';
+import { ToastContainer } from './components/Toast';
 import { HomePage } from './pages/HomePage';
 import { CreateGamePage } from './pages/CreateGamePage';
 import { GameTablePage } from './pages/GameTablePage';
@@ -55,6 +56,7 @@ function App() {
             <Route path="/admin" element={<AdminPage />} />
             <Route path="*" element={<HomePage />} />
           </Routes>
+          <ToastContainer />
         </BrowserRouter>
       </GameProvider>
     </ErrorBoundary>

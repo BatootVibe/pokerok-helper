@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { loadGameHistory, deleteCompletedGame, getUserProfile } from '../utils/storage';
 import { CompletedGame } from '../types';
 import { HeaderBack } from '../components/HeaderBack';
+import { showToast } from '../components/Toast';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { formatDate, formatTime } from '../utils/date';
 import { useVerifiedPlayers } from '../utils/hooks';
@@ -42,7 +43,7 @@ export function HistoryPage() {
       setHistory(prev => prev.filter(g => g.id !== id));
     } catch (err) {
       console.error('Failed to delete game:', err);
-      alert('Не удалось удалить игру с сервера.');
+      showToast('Не удалось удалить игру с сервера.');
     }
   }, []);
 

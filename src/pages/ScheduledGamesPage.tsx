@@ -3,6 +3,7 @@ import { ScheduledGame } from '../types';
 import { loadScheduledGames, saveScheduledGame, deleteScheduledGame, loadVenues, getUserProfile, getAllPlayers } from '../utils/storage';
 import { generateId } from '../utils/id';
 import { HeaderBack } from '../components/HeaderBack';
+import { showToast } from '../components/Toast';
 import { formatDate, formatTime, isPast } from '../utils/date';
 import { NEARBY_GAME_MARGIN } from '../utils/constants';
 import { PlayerAutocomplete, Player } from '../components/PlayerAutocomplete';
@@ -120,7 +121,7 @@ export function ScheduledGamesPage() {
       setShowForm(false);
     } catch (err) {
       console.error('Failed to save scheduled game:', err);
-      alert('Не удалось сохранить игру на сервер. Попробуйте ещё раз.');
+      showToast('Не удалось сохранить игру на сервер. Попробуйте ещё раз.');
     }
   }, [newVenue, venue, dateTime, players, editingGame, loadData]);
 
@@ -139,7 +140,7 @@ export function ScheduledGamesPage() {
       setShowForm(false);
     } catch (err) {
       console.error('Failed to delete scheduled game:', err);
-      alert('Не удалось удалить игру с сервера.');
+      showToast('Не удалось удалить игру с сервера.');
     }
   }, []);
 
@@ -408,6 +409,7 @@ function ScheduledEntry({ game, onEdit, canEdit, verifiedNames }: { game: Schedu
       onTouchStart={startHold}
       onTouchEnd={releaseHold}
       onTouchCancel={releaseHold}
+      onTouchMove={(e) => { e.preventDefault(); releaseHold(); }}
     >
       <div className="scheduled-header">
         <div className="scheduled-info">

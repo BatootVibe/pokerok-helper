@@ -1,5 +1,5 @@
 import { ChipPreset, CompletedGame, ScheduledGame } from '../types';
-import { apiGetGames, apiSaveGame, apiClearAllGames, apiGetPresets, apiSavePreset, apiDeletePreset, apiDeleteGame, apiGetScheduled, apiSaveScheduled, apiDeleteScheduled, apiHealthCheck, apiGet, apiPost, apiPut, apiRequest, apiGetVenues, apiSaveVenue, apiDeleteVenue, apiAdminStats, apiAdminClearAllGames, apiAdminDeleteGame, apiAdminDeleteUser, apiAdminDeletePreset, apiAdminDeleteVenue, apiAdminDeleteScheduled, apiAdminRenameUser } from './api';
+import { apiGetGames, apiSaveGame, apiClearAllGames, apiGetPresets, apiSavePreset, apiDeletePreset, apiDeleteGame, apiGetScheduled, apiSaveScheduled, apiDeleteScheduled, apiHealthCheck, apiGet, apiPost, apiPut, apiRequest, apiGetVenues, apiSaveVenue, apiDeleteVenue, apiAdminStats, apiAdminClearAllGames, apiAdminDeleteGame, apiAdminDeleteUser, apiAdminDeletePreset, apiAdminDeleteVenue, apiAdminDeleteScheduled, apiAdminRenameUser, apiAdminExportData, apiAdminImportData } from './api';
 import {
   LOCAL_HISTORY_KEY,
   LOCAL_PRESETS_KEY,
@@ -249,7 +249,7 @@ export async function findNearbyScheduledGame(): Promise<ScheduledGame | null> {
 // === User Profile & Players ===
 
 /** Получает профиль текущего пользователя (только имя). */
-export async function getUserProfile(): Promise<{ name: string } | null> {
+export async function getUserProfile(): Promise<{ name: string; isAdmin?: boolean } | null> {
   try {
     const data = await apiGet<{ name: string } | null>('/api/users/me');
     if (data && data.name) {
@@ -404,4 +404,12 @@ export async function adminDeleteScheduled(id: string) {
 
 export async function adminRenameUser(id: number, name: string) {
   await apiAdminRenameUser(id, name);
+}
+
+export async function adminExportData() {
+  return apiAdminExportData();
+}
+
+export async function adminImportData(data: any) {
+  return apiAdminImportData(data);
 }

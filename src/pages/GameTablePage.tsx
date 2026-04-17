@@ -106,6 +106,7 @@ export function GameTablePage() {
                   onTouchStart={() => startHold(player.id)}
                   onTouchEnd={() => endHold(player.id)}
                   onTouchCancel={cancelHold}
+                  onTouchMove={(e) => { e.preventDefault(); cancelHold(); }}
                 >
                   {holdingId === player.id ? '- Ребай' : '+ Ребай'}
                 </button>

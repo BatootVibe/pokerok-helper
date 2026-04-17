@@ -92,6 +92,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, [currentGame, initialized]);
 
   const createGame = useCallback((players: { name: string; userId?: number }[], startingChips: number, buyInRubles: number, chipPresetId: string | null, venue: string, chipPresetIsTemporary?: boolean) => {
+    const safeStartingChips = startingChips > 0 ? startingChips : 1;
     const gamePlayers: GamePlayer[] = players.map(p => ({
       id: generateId(),
       name: p.name,
@@ -103,9 +104,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
       id: generateId(),
       date: new Date().toISOString(),
       players: gamePlayers,
-      startingChips,
+      startingChips: safeStartingChips,
       buyInRubles,
-      chipPriceRubles: buyInRubles / startingChips,
+      chipPriceRubles: buyInRubles / safeStartingChips,
       chipPresetId,
       venue,
     };

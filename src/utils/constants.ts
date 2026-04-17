@@ -9,8 +9,6 @@ export const CHIP_INPUTS_KEY = 'poker_chip_inputs_';
 export const LOCAL_USER_PROFILE_KEY = 'poker_user_profile_'; // suffix + tgId
 
 // Time constants (ms)
-export const HOLD_DURATION = 10_000; // 10 seconds for long-press delete
-export const HOLD_INTERVAL = 30; // progress update interval
 export const NEARBY_GAME_MARGIN = 30 * 60 * 1000; // ±30 minutes
 export const API_AUTO_RESET_INTERVAL = 60_000; // auto-reset apiAvailable every 60s
 

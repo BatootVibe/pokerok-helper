@@ -16,7 +16,13 @@ import {
   loadScheduledGames,
   getAllPlayers,
   adminRenameUser,
+  getUserProfile,
+  adminExportData,
+  adminImportData,
 } from '../utils/storage';
+import { showToast } from '../components/Toast';
+
+import { ChipPreset, CompletedGame, ScheduledGame } from '../types';
 
 interface AdminStats {
   games: number;
@@ -26,17 +32,54 @@ interface AdminStats {
   scheduled: number;
 }
 
+interface AdminUser {
+  id: number;
+  name: string;
+  tgUsername: string | null;
+}
+
 export function AdminPage() {
+  const [authorized, setAuthorized] = useState<boolean | null>(null);
   const [stats, setStats] = useState<AdminStats | null>(null);
-  const [games, setGames] = useState<any[]>([]);
-  const [users, setUsers] = useState<{ id: number; name: string; tgUsername: string | null }[]>([]);
-  const [presets, setPresets] = useState<any[]>([]);
+  const [games, setGames] = useState<CompletedGame[]>([]);
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [presets, setPresets] = useState<ChipPreset[]>([]);
   const [venues, setVenues] = useState<string[]>([]);
-  const [scheduled, setScheduled] = useState<any[]>([]);
+  const [scheduled, setScheduled] = useState<ScheduledGame[]>([]);
   const [activeSection, setActiveSection] = useState<string>('stats');
   const [confirmAction, setConfirmAction] = useState<{ title: string; description: string; onConfirm: () => void } | null>(null);
   const [editingUserId, setEditingUserId] = useState<number | null>(null);
   const [editingName, setEditingName] = useState('');
+  const [importing, setImporting] = useState(false);
+
+  useEffect(() => {
+    getUserProfile().then(profile => {
+      if (profile?.isAdmin) {
+        setAuthorized(true);
+      } else {
+        setAuthorized(false);
+      }
+    }).catch(() => setAuthorized(false));
+  }, []);
+
+  if (authorized === false) {
+    return (
+      <div className="page">
+        <HeaderBack title="Админ-панель" />
+        <div className="card">
+          <p className="text-center text-muted">Доступ запрещён</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (authorized === null) {
+    return (
+      <div className="page" style={{ justifyContent: 'center', alignItems: 'center' }}>
+        <p style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>Загрузка...</p>
+      </div>
+    );
+  }
 
   const refresh = useCallback(async () => {
     try {
@@ -71,6 +114,55 @@ export function AdminPage() {
         refresh();
       },
     });
+  };
+
+  const handleExport = async () => {
+    try {
+      const data = await adminExportData();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `pokerok-export-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      showToast('Ошибка экспорта данных');
+    }
+  };
+
+  const handleImport = async () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      setImporting(true);
+      try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+        setConfirmAction({
+          title: '📥 Импорт данных?',
+          description: 'Текущие игры и пресеты будут заменены данными из файла. Пользователи будут объединены.',
+          onConfirm: async () => {
+            try {
+              await adminImportData(data);
+              setConfirmAction(null);
+              setImporting(false);
+              refresh();
+            } catch {
+              showToast('Ошибка импорта данных');
+              setImporting(false);
+            }
+          },
+        });
+      } catch {
+        showToast('Некорректный файл импорта');
+        setImporting(false);
+      }
+    };
+    input.click();
   };
 
   const handleDeleteGame = (id: string) => {
@@ -183,7 +275,15 @@ export function AdminPage() {
               <div className="stat-label">Запланированных</div>
             </div>
           </div>
-          <button className="btn btn-danger mt-16" style={{ width: '100%' }} onClick={handleClearAll}>
+          <div className="admin-data-actions mt-16">
+            <button className="btn btn-secondary" style={{ flex: 1 }} onClick={handleExport}>
+              📥 Экспорт
+            </button>
+            <button className="btn btn-secondary" style={{ flex: 1 }} onClick={handleImport} disabled={importing}>
+              📤 Импорт
+            </button>
+          </div>
+          <button className="btn btn-danger mt-8" style={{ width: '100%' }} onClick={handleClearAll}>
             🗑️ Очистить ВСЮ историю
           </button>
         </div>

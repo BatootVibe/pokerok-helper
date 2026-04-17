@@ -188,3 +188,14 @@ export function apiAdminRenameUser(id: number, name: string): Promise<{ success:
     body: JSON.stringify({ name }),
   });
 }
+
+export function apiAdminExportData(): Promise<any> {
+  return request('/api/admin/export');
+}
+
+export function apiAdminImportData(data: any): Promise<{ success: boolean }> {
+  return request('/api/admin/import', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}

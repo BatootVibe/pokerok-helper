@@ -426,7 +426,8 @@ app.delete('/api/presets/:id', requireTelegramAuth, strictLimiter, (req, res) =>
 app.get('/api/users/me', requireTelegramAuth, (req, res) => {
   try {
     const user = db.prepare('SELECT player_name as name FROM users WHERE id = ?').get(req.userId);
-    const ADMIN_TG_ID = process.env.ADMIN_TG_ID || '781007293';
+    const ADMIN_TG_ID = process.env.ADMIN_TG_ID;
+    if (!ADMIN_TG_ID) return res.status(500).json({ error: 'ADMIN_TG_ID не настроен' });
     res.json({ ...user, isAdmin: req.tgId === ADMIN_TG_ID });
   } catch {
     res.json(null);
@@ -606,7 +607,10 @@ app.delete('/api/scheduled/:id', requireTelegramAuth, strictLimiter, (req, res) 
 // ===== ADMIN =====
 
 function requireAdmin(req, res, next) {
-  const ADMIN_TG_ID = process.env.ADMIN_TG_ID || '781007293';
+  const ADMIN_TG_ID = process.env.ADMIN_TG_ID;
+  if (!ADMIN_TG_ID) {
+    return res.status(500).json({ error: 'ADMIN_TG_ID не настроен' });
+  }
   if (req.tgId !== ADMIN_TG_ID) {
     return res.status(403).json({ error: 'Доступ запрещён' });
   }
@@ -734,6 +738,102 @@ app.put('/api/admin/users/:id', requireTelegramAuth, requireAdmin, strictLimiter
   } catch (err) {
     console.error('Failed to rename user:', err.message);
     res.status(500).json({ error: 'Ошибка переименования' });
+  }
+});
+
+// ===== EXPORT / IMPORT =====
+
+app.get('/api/admin/export', requireTelegramAuth, requireAdmin, (req, res) => {
+  try {
+    const users = db.prepare('SELECT id, tg_id, player_name, tg_username FROM users').all();
+    const games = db.prepare('SELECT * FROM games').all();
+    const gameResults = db.prepare('SELECT * FROM game_results').all();
+    const presets = db.prepare('SELECT * FROM presets').all();
+    const venues = db.prepare('SELECT * FROM venues').all();
+    const scheduled = db.prepare('SELECT * FROM scheduled_games').all();
+    res.json({ users, games, gameResults, presets, venues, scheduled, exportedAt: new Date().toISOString() });
+  } catch (err) {
+    console.error('Failed to export data:', err.message);
+    res.status(500).json({ error: 'Ошибка экспорта' });
+  }
+});
+
+app.post('/api/admin/import', requireTelegramAuth, requireAdmin, strictLimiter, (req, res) => {
+  const { users, games, gameResults, presets, venues, scheduled } = req.body;
+  if (!games || !Array.isArray(games)) {
+    return res.status(400).json({ error: 'Некорректные данные импорта' });
+  }
+
+  try {
+    const tx = db.transaction(() => {
+      db.prepare('DELETE FROM game_results').run();
+      db.prepare('DELETE FROM games').run();
+      db.prepare('DELETE FROM scheduled_games').run();
+      db.prepare('DELETE FROM presets').run();
+      db.prepare('DELETE FROM venues').run();
+
+      if (Array.isArray(users)) {
+        for (const u of users) {
+          if (u.tg_id && u.player_name) {
+            try {
+              db.prepare('INSERT OR IGNORE INTO users (id, tg_id, player_name, tg_username) VALUES (?, ?, ?, ?)')
+                .run(u.id, u.tg_id, u.player_name, u.tg_username || null);
+            } catch {}
+          }
+        }
+      }
+
+      if (Array.isArray(venues)) {
+        for (const v of venues) {
+          if (v.name) {
+            try { db.prepare('INSERT OR IGNORE INTO venues (name) VALUES (?)').run(v.name); } catch {}
+          }
+        }
+      }
+
+      for (const g of games) {
+        try {
+          db.prepare('INSERT OR REPLACE INTO games (id, date, finished_at, venue, starting_chips, buy_in_rubles, chip_price_rubles, owner_user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+            .run(g.id, g.date, g.finished_at || '', g.venue || '', g.starting_chips, g.buy_in_rubles, g.chip_price_rubles, g.owner_user_id || null);
+        } catch {}
+      }
+
+      if (Array.isArray(gameResults)) {
+        for (const r of gameResults) {
+          try {
+            db.prepare('INSERT INTO game_results (game_id, player_id, player_name, user_id, buy_in_qty, rebuy_qty, was_chips, became_chips, rubles, spent_rubles) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+              .run(r.game_id, r.player_id, r.player_name, r.user_id || null, r.buy_in_qty || 1, r.rebuy_qty || 0, r.was_chips, r.became_chips, r.rubles, r.spent_rubles);
+          } catch {}
+        }
+      }
+
+      if (Array.isArray(presets)) {
+        for (const p of presets) {
+          if (p.id && p.name) {
+            try {
+              db.prepare('INSERT OR REPLACE INTO presets (id, name, chips, owner_user_id, is_temporary, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+                .run(p.id, p.name, p.chips, p.owner_user_id || null, p.is_temporary || 0, p.created_at || null);
+            } catch {}
+          }
+        }
+      }
+
+      if (Array.isArray(scheduled)) {
+        for (const s of scheduled) {
+          if (s.id) {
+            try {
+              db.prepare('INSERT OR REPLACE INTO scheduled_games (id, venue, scheduled_at, players, created_at, owner_user_id) VALUES (?, ?, ?, ?, ?, ?)')
+                .run(s.id, s.venue || '', s.scheduled_at, s.players, s.created_at || '', s.owner_user_id || null);
+            } catch {}
+          }
+        }
+      }
+    });
+    tx();
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Failed to import data:', err.message);
+    res.status(500).json({ error: 'Ошибка импорта' });
   }
 });
 

@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useGame } from '../context/GameContext';
 import { addCompletedGame, getUserProfile, deletePreset } from '../utils/storage';
+import { showToast } from '../components/Toast';
 import { CompletedGame, GameResult } from '../types';
 import { HeaderBack } from '../components/HeaderBack';
 import { useVerifiedPlayers } from '../utils/hooks';
@@ -25,6 +26,7 @@ export function ResultsPage() {
   const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
   const currentTgId = tgUser ? String(tgUser.id) : null;
   const [isBound, setIsBound] = useState(false);
+  const [finishing, setFinishing] = useState(false);
 
   useEffect(() => {
     if (currentTgId) {
@@ -49,10 +51,11 @@ export function ResultsPage() {
   }
 
   const handleFinish = async () => {
+    if (finishing) return;
+    setFinishing(true);
     if (!results) return;
     try {
       if (isBound) {
-        // Привязанный игрок — сохраняем на сервер
         const completedGame: CompletedGame = {
           id: currentGame.id,
           date: currentGame.date,
@@ -72,7 +75,8 @@ export function ResultsPage() {
       navigate('/');
     } catch (err) {
       console.error('Failed to save game:', err);
-      alert('Не удалось сохранить игру на сервер. Попробуйте ещё раз.');
+      showToast('Не удалось сохранить игру на сервер. Попробуйте ещё раз.');
+      setFinishing(false);
     }
   };
 
@@ -109,9 +113,12 @@ export function ResultsPage() {
               </thead>
               <tbody>
                 {results.map(result => {
-                  const isPositive = result.rubles > result.spentRubles;
                   const diff = result.rubles - result.spentRubles;
-                  const rubleClass = isPositive ? 'result-positive' : 'result-negative';
+                  const isPositive = diff > 0;
+                  const rubleClass = isPositive ? 'result-positive' : diff < 0 ? 'result-negative' : '';
+                  const displayRubles = result.becameChips === 0
+                    ? -result.spentRubles
+                    : result.rubles;
 
                   return (
                     <tr key={result.playerId}>
@@ -123,7 +130,7 @@ export function ResultsPage() {
                       <td>{result.wasChips} pts</td>
                       <td>{result.becameChips} pts</td>
                       <td className={rubleClass}>
-                        {result.rubles.toFixed(0)} ₽
+                        {displayRubles.toFixed(0)} ₽
                         <span className="diff-text"> ({diff > 0 ? '+' : ''}{diff.toFixed(0)} ₽)</span>
                       </td>
                     </tr>
@@ -188,12 +195,12 @@ export function ResultsPage() {
 
       <div className="fixed-actions">
         {isBound ? (
-          <button className="btn btn-success" onClick={handleFinish}>
-            ✅ Завершить и сохранить
+          <button className="btn btn-success" onClick={handleFinish} disabled={finishing}>
+            {finishing ? 'Сохранение...' : '✅ Завершить и сохранить'}
           </button>
         ) : (
-          <button className="btn btn-danger" onClick={handleFinish}>
-            ✅ Завершить без сохранения
+          <button className="btn btn-danger" onClick={handleFinish} disabled={finishing}>
+            {finishing ? 'Завершение...' : '✅ Завершить без сохранения'}
           </button>
         )}
       </div>

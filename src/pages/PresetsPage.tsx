@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ChipPreset, ChipEntry, ChipColor, CHIP_COLOR_MAP } from '../types';
 import { loadPresets, savePresets, deletePreset, getUserProfile } from '../utils/storage';
+import { showToast } from '../components/Toast';
 import { generateId } from '../utils/id';
 import { DEFAULT_CHIP_ENTRIES } from '../utils/constants';
 import { HeaderBack } from '../components/HeaderBack';
@@ -134,7 +135,7 @@ export function PresetsPage() {
       }
     } catch (err) {
       console.error('Failed to save preset:', err);
-      alert('Не удалось сохранить пресет на сервер. Попробуйте ещё раз.');
+      showToast('Не удалось сохранить пресет на сервер. Попробуйте ещё раз.');
     }
   }, [newPresetName, chipEntries, presets, editingPresetId, fromCreate, navigate]);
 
@@ -145,7 +146,7 @@ export function PresetsPage() {
       setPresets(updated);
     } catch (err) {
       console.error('Failed to delete preset:', err);
-      alert('Не удалось удалить пресет с сервера.');
+      showToast('Не удалось удалить пресет с сервера.');
     }
   }, [presets]);
 
@@ -271,6 +272,7 @@ function PresetListItem({ preset, onEdit, canEdit }: {
       onTouchStart={startHold}
       onTouchEnd={releaseHold}
       onTouchCancel={releaseHold}
+      onTouchMove={(e) => { e.preventDefault(); releaseHold(); }}
     >
       <div className="preset-card-header">
         <div className="preset-card-title">
