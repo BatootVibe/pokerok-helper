@@ -42,6 +42,7 @@ export interface ChipPreset {
   id: string;
   name: string;
   chips: ChipEntry[];
+  isTemporary?: boolean;
 }
 
 export interface GamePlayer {

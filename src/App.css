@@ -2089,3 +2089,13 @@ select.input option {
   min-width: 0;
   flex: 1;
 }
+
+.badge-temp {
+  background: rgba(255, 152, 0, 0.15);
+  color: #ff9800;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 6px;
+  font-weight: 600;
+}

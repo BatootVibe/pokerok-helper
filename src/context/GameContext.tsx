@@ -34,7 +34,7 @@ function clearCurrentGameId() {
 
 interface GameContextType {
   currentGame: Game | null;
-  createGame: (players: { name: string; userId?: number }[], startingChips: number, buyInRubles: number, chipPresetId: string | null, venue: string) => void;
+  createGame: (players: { name: string; userId?: number }[], startingChips: number, buyInRubles: number, chipPresetId: string | null, venue: string, chipPresetIsTemporary?: boolean) => void;
   addPlayer: (player: { name: string; userId?: number }) => void;
   incrementRebuy: (playerId: string) => void;
   decrementRebuy: (playerId: string) => void;
@@ -43,6 +43,7 @@ interface GameContextType {
   selectedPresetId: string | null;
   setSelectedPresetId: (id: string | null) => void;
   updateGame: (game: Game) => void;
+  chipPresetIsTemporary: boolean;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -50,6 +51,7 @@ const GameContext = createContext<GameContextType | undefined>(undefined);
 export function GameProvider({ children }: { children: ReactNode }) {
   const [currentGame, setCurrentGame] = useState<Game | null>(null);
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
+  const [chipPresetIsTemporary, setChipPresetIsTemporary] = useState(false);
   const [initialized, setInitialized] = useState(false);
   const saveTimerRef = useRef<number | null>(null);
 
@@ -89,7 +91,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     };
   }, [currentGame, initialized]);
 
-  const createGame = useCallback((players: { name: string; userId?: number }[], startingChips: number, buyInRubles: number, chipPresetId: string | null, venue: string) => {
+  const createGame = useCallback((players: { name: string; userId?: number }[], startingChips: number, buyInRubles: number, chipPresetId: string | null, venue: string, chipPresetIsTemporary?: boolean) => {
     const gamePlayers: GamePlayer[] = players.map(p => ({
       id: generateId(),
       name: p.name,
@@ -110,6 +112,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
     setCurrentGame(game);
     setSelectedPresetId(chipPresetId);
+    setChipPresetIsTemporary(!!chipPresetIsTemporary);
   }, []);
 
   const addPlayer = useCallback((player: { name: string; userId?: number }) => {
@@ -175,6 +178,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     
     setCurrentGame(null);
     setSelectedPresetId(null);
+    setChipPresetIsTemporary(false);
   }, [currentGame]);
 
   // Убран useEffect удаления — логика перенесена в finishGame
@@ -200,6 +204,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         selectedPresetId,
         setSelectedPresetId,
         updateGame,
+        chipPresetIsTemporary,
       }}
     >
       {children}

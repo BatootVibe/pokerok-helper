@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useGame } from '../context/GameContext';
-import { addCompletedGame, getUserProfile } from '../utils/storage';
+import { addCompletedGame, getUserProfile, deletePreset } from '../utils/storage';
 import { CompletedGame, GameResult } from '../types';
 import { HeaderBack } from '../components/HeaderBack';
 import { useVerifiedPlayers } from '../utils/hooks';
@@ -10,7 +10,7 @@ import { calculateDebts } from '../utils/debt';
 export function ResultsPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { currentGame, finishGame } = useGame();
+  const { currentGame, finishGame, selectedPresetId, chipPresetIsTemporary } = useGame();
 
   const results = location.state?.results as GameResult[] | undefined;
   const [activeTab, setActiveTab] = useState<'results' | 'debts'>('results');
@@ -64,6 +64,9 @@ export function ResultsPage() {
           chipPriceRubles: currentGame.chipPriceRubles,
         };
         await addCompletedGame(completedGame);
+      }
+      if (chipPresetIsTemporary && selectedPresetId) {
+        try { await deletePreset(selectedPresetId); } catch {}
       }
       finishGame();
       navigate('/');

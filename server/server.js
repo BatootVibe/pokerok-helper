@@ -29,6 +29,8 @@ try { db.exec('ALTER TABLE games ADD COLUMN owner_user_id INTEGER'); } catch {}
 try { db.exec('ALTER TABLE presets ADD COLUMN owner_user_id INTEGER'); } catch {}
 try { db.exec('ALTER TABLE scheduled_games ADD COLUMN owner_user_id INTEGER'); } catch {}
 try { db.exec('ALTER TABLE users ADD COLUMN tg_username TEXT'); } catch {}
+try { db.exec('ALTER TABLE presets ADD COLUMN is_temporary INTEGER NOT NULL DEFAULT 0'); } catch {}
+try { db.exec('ALTER TABLE presets ADD COLUMN created_at TEXT'); } catch {}
 try { db.exec('ALTER TABLE game_results ADD COLUMN user_id INTEGER'); } catch {}
 try { db.exec('CREATE INDEX IF NOT EXISTS idx_games_owner ON games(owner_user_id)'); } catch {}
 try { db.exec('CREATE INDEX IF NOT EXISTS idx_results_user ON game_results(user_id)'); } catch {}
@@ -37,6 +39,12 @@ try { db.exec('ALTER TABLE game_results ADD FOREIGN KEY (user_id) REFERENCES use
 try { db.exec('ALTER TABLE games ADD FOREIGN KEY (owner_user_id) REFERENCES users(id)'); } catch {}
 try { db.exec('ALTER TABLE presets ADD FOREIGN KEY (owner_user_id) REFERENCES users(id)'); } catch {}
 try { db.exec('ALTER TABLE scheduled_games ADD FOREIGN KEY (owner_user_id) REFERENCES users(id)'); } catch {}
+
+// Зачистка старых временных пресетов (старше 24ч)
+try {
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  db.prepare("DELETE FROM presets WHERE is_temporary = 1 AND created_at IS NOT NULL AND created_at < ?").run(cutoff);
+} catch {}
 
 const app = express();
 
@@ -366,19 +374,19 @@ app.delete('/api/games', requireTelegramAuth, strictLimiter, (req, res) => {
 // ===== ПРЕСЕТЫ =====
 
 app.get('/api/presets', (req, res) => {
-  const presets = db.prepare('SELECT id, name, chips FROM presets').all();
+  const presets = db.prepare('SELECT id, name, chips, is_temporary as isTemporary FROM presets').all();
   const result = presets.map(p => {
     try {
-      return { id: p.id, name: p.name, chips: JSON.parse(p.chips) };
+      return { id: p.id, name: p.name, chips: JSON.parse(p.chips), isTemporary: !!p.isTemporary };
     } catch {
-      return { id: p.id, name: p.name, chips: [] };
+      return { id: p.id, name: p.name, chips: [], isTemporary: !!p.isTemporary };
     }
   });
   res.json(result);
 });
 
 app.post('/api/presets', requireTelegramAuth, strictLimiter, (req, res) => {
-  const { id, name, chips } = req.body;
+  const { id, name, chips, isTemporary } = req.body;
   const ownerUserId = req.userId;
 
   const err = validateString(id, 'id') || validateString(name, 'name', 1, 50) || validateArray(chips, 'chips');
@@ -389,9 +397,12 @@ app.post('/api/presets', requireTelegramAuth, strictLimiter, (req, res) => {
     if (chipErr) return res.status(400).json({ error: chipErr });
   }
 
+  const isTemp = isTemporary ? 1 : 0;
+  const createdAt = new Date().toISOString();
+
   try {
-    db.prepare('INSERT OR REPLACE INTO presets (id, name, chips, owner_user_id) VALUES (?, ?, ?, ?)')
-      .run(id, name, JSON.stringify(chips), ownerUserId);
+    db.prepare('INSERT OR REPLACE INTO presets (id, name, chips, owner_user_id, is_temporary, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(id, name, JSON.stringify(chips), ownerUserId, isTemp, createdAt);
     res.json({ success: true });
   } catch (dbErr) {
     console.error('Failed to save preset:', dbErr.message);

@@ -109,6 +109,7 @@ export function PresetsPage() {
       id: editingPresetId || generateId(),
       name,
       chips: validChips,
+      isTemporary: !isBound,
     };
 
     try {
@@ -154,20 +155,21 @@ export function PresetsPage() {
 
       {!showForm && (
         <>
-          <PresetList presets={presets} onEdit={isBound ? openEdit : () => {}} />
+          <PresetList presets={presets} onEdit={isBound ? openEdit : () => {}} isBound={isBound} />
           {isBound && presets.length > 0 && (
             <p className="page-hint text-center">Удерживайте карточку 2 сек для редактирования</p>
           )}
         </>
       )}
 
-      {showForm && isBound ? (
+      {showForm ? (
         <PresetForm
           name={newPresetName}
           setName={setNewPresetName}
           chipEntries={chipEntries}
           isEditing={editingPresetId !== null}
           isDuplicateName={isDuplicateName}
+          isTemporary={!isBound && !editingPresetId}
           onChangeColor={changeChipColor}
           onUpdateNominal={(i, v) => updateChipEntry(i, 'nominal', v)}
           onRemove={(i) => setChipEntries(prev => prev.filter((_, idx) => idx !== i))}
@@ -186,11 +188,9 @@ export function PresetsPage() {
         />
       ) : (
         <div className="fixed-actions">
-          {isBound && (
-            <button className="btn btn-secondary" onClick={openNew}>
-              ✨ Новый пресет
-            </button>
-          )}
+          <button className="btn btn-secondary" onClick={openNew}>
+            ✨ Новый пресет
+          </button>
         </div>
       )}
     </div>
@@ -199,9 +199,10 @@ export function PresetsPage() {
 
 // === Sub-components ===
 
-function PresetList({ presets, onEdit }: {
+function PresetList({ presets, onEdit, isBound }: {
   presets: ChipPreset[];
   onEdit: (preset: ChipPreset) => void;
+  isBound: boolean;
 }) {
   if (presets.length === 0) {
     return (
@@ -219,21 +220,24 @@ function PresetList({ presets, onEdit }: {
           key={preset.id}
           preset={preset}
           onEdit={() => onEdit(preset)}
+          canEdit={isBound && !preset.isTemporary}
         />
       ))}
     </div>
   );
 }
 
-function PresetListItem({ preset, onEdit }: {
+function PresetListItem({ preset, onEdit, canEdit }: {
   preset: ChipPreset;
   onEdit: () => void;
+  canEdit: boolean;
 }) {
   const holdTimerRef = useRef<number | null>(null);
   const [isHolding, setIsHolding] = useState(false);
   const EDIT_HOLD_DURATION = 2000;
 
   const startHold = () => {
+    if (!canEdit) return;
     setIsHolding(true);
     holdTimerRef.current = window.setTimeout(() => {
       holdTimerRef.current = null;
@@ -271,6 +275,7 @@ function PresetListItem({ preset, onEdit }: {
       <div className="preset-card-header">
         <div className="preset-card-title">
           <span className="preset-card-name">{preset.name}</span>
+          {preset.isTemporary && <span className="badge badge-temp">Временный</span>}
         </div>
         <div className="preset-card-chips">
           {sortedChips.map((chip, i) => {
@@ -288,7 +293,7 @@ function PresetListItem({ preset, onEdit }: {
 }
 
 function PresetForm({
-  name, setName, chipEntries, isEditing, isDuplicateName,
+  name, setName, chipEntries, isEditing, isDuplicateName, isTemporary,
   onChangeColor, onUpdateNominal, onRemove, onAdd, onSave, onRemovePreset, onCancel,
   canAddMore,
 }: {
@@ -296,6 +301,7 @@ function PresetForm({
   chipEntries: ChipEntry[];
   isEditing: boolean;
   isDuplicateName: boolean;
+  isTemporary: boolean;
   onChangeColor: (i: number) => void;
   onUpdateNominal: (i: number, v: number) => void;
   onRemove: (i: number) => void;
@@ -307,7 +313,8 @@ function PresetForm({
 }) {
   return (
     <div className="card">
-      <h3 className="mb-16">{isEditing ? '✏️ Редактировать пресет' : '✨ Новый пресет'}</h3>
+      <h3 className="mb-16">{isEditing ? '✏️ Редактировать пресет' : isTemporary ? '⚡ Временный пресет' : '✨ Новый пресет'}</h3>
+      {isTemporary && <p className="page-hint mb-8">Пресет будет удалён после завершения игры</p>}
       <div className="form-group">
         <label className="form-label">Название</label>
         <input

@@ -146,12 +146,14 @@ export function CreateGamePage() {
     }
 
     // Создаем игру с объектами игроков
+    const selectedPreset = presets.find(p => p.id === selectedPresetId);
     createGame(
       players,
       Number(startingChips),
       Number(buyInRubles),
       selectedPresetId,
-      venue
+      venue,
+      !!selectedPreset?.isTemporary
     );
     navigate('/table');
   }, [players, startingChips, buyInRubles, selectedPresetId, newVenueName, selectedVenue, venues, createGame, navigate]);
