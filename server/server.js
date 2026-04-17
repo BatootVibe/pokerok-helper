@@ -28,6 +28,7 @@ db.exec(`CREATE INDEX IF NOT EXISTS idx_results_game ON game_results(game_id)`);
 try { db.exec('ALTER TABLE games ADD COLUMN owner_user_id INTEGER'); } catch {}
 try { db.exec('ALTER TABLE presets ADD COLUMN owner_user_id INTEGER'); } catch {}
 try { db.exec('ALTER TABLE scheduled_games ADD COLUMN owner_user_id INTEGER'); } catch {}
+try { db.exec('ALTER TABLE users ADD COLUMN tg_username TEXT'); } catch {}
 try { db.exec('ALTER TABLE game_results ADD COLUMN user_id INTEGER'); } catch {}
 try { db.exec('CREATE INDEX IF NOT EXISTS idx_games_owner ON games(owner_user_id)'); } catch {}
 try { db.exec('CREATE INDEX IF NOT EXISTS idx_results_user ON game_results(user_id)'); } catch {}
@@ -144,22 +145,28 @@ function requireTelegramAuth(req, res, next) {
   }
 
   const tgId = String(verified.user.id);
+  const tgUsername = verified.user.username || null;
 
   // Находим или создаём пользователя, получаем внутренний user_id
-  let userRow = db.prepare('SELECT id, tg_id, player_name FROM users WHERE tg_id = ?').get(tgId);
+  let userRow = db.prepare('SELECT id, tg_id, player_name, tg_username FROM users WHERE tg_id = ?').get(tgId);
   if (!userRow) {
     // Новый пользователь — создаём с пустым именем (фронтенд запросит его ввод)
     try {
-      const result = db.prepare('INSERT INTO users (tg_id, player_name) VALUES (?, NULL)').run(tgId);
-      userRow = { id: result.lastInsertRowid, tg_id: tgId, player_name: null };
+      const result = db.prepare('INSERT INTO users (tg_id, player_name, tg_username) VALUES (?, NULL, ?)').run(tgId, tgUsername);
+      userRow = { id: result.lastInsertRowid, tg_id: tgId, player_name: null, tg_username: tgUsername };
     } catch (err) {
       // Race condition: другой запрос уже создал пользователя
       if (err.message.includes('UNIQUE')) {
-        userRow = db.prepare('SELECT id, tg_id, player_name FROM users WHERE tg_id = ?').get(tgId);
+        userRow = db.prepare('SELECT id, tg_id, player_name, tg_username FROM users WHERE tg_id = ?').get(tgId);
       } else {
         return res.status(500).json({ error: 'Ошибка создания профиля' });
       }
     }
+  }
+
+  if (tgUsername && userRow.tg_username !== tgUsername) {
+    db.prepare('UPDATE users SET tg_username = ? WHERE id = ?').run(tgUsername, userRow.id);
+    userRow.tg_username = tgUsername;
   }
 
   req.userId = userRow.id;
@@ -492,7 +499,7 @@ app.put('/api/users', requireTelegramAuth, strictLimiter, (req, res) => {
 
 app.get('/api/players', (req, res) => {
   try {
-    const players = db.prepare('SELECT id, player_name as name FROM users WHERE player_name IS NOT NULL').all();
+    const players = db.prepare('SELECT id, player_name as name, tg_username FROM users WHERE player_name IS NOT NULL').all();
     res.json(players);
   } catch {
     res.json([]);

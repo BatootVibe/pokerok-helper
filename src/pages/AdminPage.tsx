@@ -29,7 +29,7 @@ interface AdminStats {
 export function AdminPage() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [games, setGames] = useState<any[]>([]);
-  const [users, setUsers] = useState<{ id: number; name: string }[]>([]);
+  const [users, setUsers] = useState<{ id: number; name: string; tgUsername: string | null }[]>([]);
   const [presets, setPresets] = useState<any[]>([]);
   const [venues, setVenues] = useState<string[]>([]);
   const [scheduled, setScheduled] = useState<any[]>([]);
@@ -50,7 +50,7 @@ export function AdminPage() {
       ]);
       setStats(s);
       setGames(g);
-      setUsers(u.map((p: any) => ({ id: p.id || p.userId, name: p.name })));
+      setUsers(u.map((p: any) => ({ id: p.id || p.userId, name: p.name, tgUsername: p.tg_username || null })));
       setPresets(p);
       setVenues(v);
       setScheduled(sc);
@@ -248,7 +248,7 @@ export function AdminPage() {
                     ) : (
                       <span className="admin-list-title verified-player">{u.name}</span>
                     )}
-                    <span className="text-muted text-sm">ID: {u.id}</span>
+                    <span className="text-muted text-sm">{u.tgUsername ? `@${u.tgUsername}` : 'Без @юзернейма'}</span>
                   </div>
                   <div className="admin-list-actions">
                     {editingUserId !== u.id && (
