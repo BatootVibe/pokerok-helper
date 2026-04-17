@@ -1,18 +1,24 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGame } from '../context/GameContext';
 import { loadPresets } from '../utils/storage';
 import { ChipPreset, CHIP_COLOR_MAP, GameResult } from '../types';
 import { HeaderBack } from '../components/HeaderBack';
 import { CHIP_INPUTS_KEY } from '../utils/constants';
+import { apiUpdateActiveGameChips } from '../utils/api';
+import { useActiveGamePolling } from '../utils/hooks';
 
 export function ChipCountPage() {
   const navigate = useNavigate();
-  const { currentGame, selectedPresetId } = useGame();
+  const { currentGame, selectedPresetId, isOwner, remoteChipInputs, myPlayerId } = useGame();
 
   const [presets, setPresets] = useState<ChipPreset[]>([]);
   const [chipInputs, setChipInputs] = useState<Record<string, Record<number, number>>>({});
   const [expandedPlayerId, setExpandedPlayerId] = useState<string | null>(null);
+  const apiChipsTimerRef = useRef<number | null>(null);
+
+  const { setNavigate } = useActiveGamePolling(3000);
+  useEffect(() => { setNavigate(navigate); }, [navigate, setNavigate]);
 
   useEffect(() => {
     loadPresets().then(p => setPresets(p));
@@ -28,6 +34,20 @@ export function ChipCountPage() {
       }
     }
   }, [currentGame]);
+
+  useEffect(() => {
+    if (!isOwner && Object.keys(remoteChipInputs).length > 0) {
+      setChipInputs(prev => {
+        const merged = { ...prev };
+        for (const [pid, chips] of Object.entries(remoteChipInputs)) {
+          if (pid !== myPlayerId) {
+            merged[pid] = chips;
+          }
+        }
+        return merged;
+      });
+    }
+  }, [remoteChipInputs, isOwner, myPlayerId]);
 
   useEffect(() => {
     if (!currentGame || Object.keys(chipInputs).length === 0) return;
@@ -51,14 +71,24 @@ export function ChipCountPage() {
 
   const handleChipChange = useCallback((playerId: string, chipIndex: number, value: string) => {
     const num = Math.max(0, parseInt(value) || 0);
-    setChipInputs(prev => ({
-      ...prev,
-      [playerId]: {
-        ...(prev[playerId] || {}),
-        [chipIndex]: num,
-      },
-    }));
-  }, []);
+    setChipInputs(prev => {
+      const updated = {
+        ...prev,
+        [playerId]: {
+          ...(prev[playerId] || {}),
+          [chipIndex]: num,
+        },
+      };
+
+      if (apiChipsTimerRef.current) clearTimeout(apiChipsTimerRef.current);
+      apiChipsTimerRef.current = window.setTimeout(() => {
+        apiUpdateActiveGameChips(currentGame.id, playerId, updated[playerId]).catch(() => {});
+        apiChipsTimerRef.current = null;
+      }, 500);
+
+      return updated;
+    });
+  }, [currentGame]);
 
   if (!selectedPreset) {
     return (
@@ -122,6 +152,11 @@ export function ChipCountPage() {
     return playerId in chipInputs;
   };
 
+  const canEditPlayer = (playerId: string): boolean => {
+    if (isOwner) return true;
+    return playerId === myPlayerId;
+  };
+
   const openAccordion = (playerId: string) => {
     if (expandedPlayerId === playerId) {
       setExpandedPlayerId(null);
@@ -142,6 +177,7 @@ export function ChipCountPage() {
         const filled = isPlayerFilled(player.id);
         const totalChips = getPlayerTotalChips(player.id);
         const wasChips = currentGame.startingChips * (1 + player.rebuyQty);
+        const editable = canEditPlayer(player.id);
 
         return (
           <div key={player.id} className={`card chip-accordion ${isExpanded ? 'chip-accordion-expanded' : ''} ${filled ? 'chip-accordion-filled' : ''}`}>
@@ -174,16 +210,23 @@ export function ChipCountPage() {
                         key={chip.color + chip.nominal}
                         chip={chip}
                         value={chipInputs[player.id]?.[origIndex] || 0}
-                        onChange={value => handleChipChange(player.id, origIndex, value)}
+                        onChange={editable ? (value => handleChipChange(player.id, origIndex, value)) : undefined}
                       />
                     ))}
                 </div>
-                <button
-                  className="btn btn-primary btn-small chip-accordion-done"
-                  onClick={() => setExpandedPlayerId(null)}
-                >
-                  ✓ Готово
-                </button>
+                {editable && (
+                  <button
+                    className="btn btn-primary btn-small chip-accordion-done"
+                    onClick={() => setExpandedPlayerId(null)}
+                  >
+                    ✓ Готово
+                  </button>
+                )}
+                {!editable && (
+                  <p className="text-muted text-sm" style={{ textAlign: 'center', padding: '8px 0' }}>
+                    Только просмотр
+                  </p>
+                )}
               </div>
             )}
           </div>
@@ -202,7 +245,7 @@ export function ChipCountPage() {
 function ChipRow({ chip, value, onChange }: {
   chip: { color: ChipPreset['chips'][number]['color']; nominal: number };
   value: number;
-  onChange: (value: string) => void;
+  onChange?: (value: string) => void;
 }) {
   const textColor = isLightColor(chip.color) ? '#1a1a1a' : '#ffffff';
 
@@ -216,16 +259,22 @@ function ChipRow({ chip, value, onChange }: {
           {chip.nominal}
         </span>
       </div>
-      <input
-        type="number"
-        min="0"
-        value={value || ''}
-        onChange={e => onChange(e.target.value)}
-        placeholder="0"
-        className="chip-row-input chip-row-input-lg"
-        onFocus={e => e.target.style.borderColor = 'var(--accent-gold)'}
-        onBlur={e => e.target.style.borderColor = 'var(--border-color)'}
-      />
+      {onChange ? (
+        <input
+          type="number"
+          min="0"
+          value={value || ''}
+          onChange={e => onChange(e.target.value)}
+          placeholder="0"
+          className="chip-row-input chip-row-input-lg"
+          onFocus={e => e.target.style.borderColor = 'var(--accent-gold)'}
+          onBlur={e => e.target.style.borderColor = 'var(--border-color)'}
+        />
+      ) : (
+        <span className="chip-row-input chip-row-input-lg chip-row-readonly">
+          {value || '—'}
+        </span>
+      )}
     </div>
   );
 }

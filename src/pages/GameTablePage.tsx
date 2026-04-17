@@ -5,12 +5,13 @@ import { HeaderHome } from '../components/HeaderBack';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { PlayerAutocomplete, Player } from '../components/PlayerAutocomplete';
 import { formatDuration } from '../utils/date';
+import { useActiveGamePolling } from '../utils/hooks';
 
 const HOLD_DURATION = 600;
 
 export function GameTablePage() {
   const navigate = useNavigate();
-  const { currentGame, addPlayer, incrementRebuy, decrementRebuy, finishGame } = useGame();
+  const { currentGame, isOwner, addPlayer, incrementRebuy, decrementRebuy, finishGame } = useGame();
   const [players, setPlayers] = useState<Player[]>([]);
   const [showConfirm, setShowConfirm] = useState(false);
   const [holdingId, setHoldingId] = useState<string | null>(null);
@@ -18,6 +19,9 @@ export function GameTablePage() {
   const holdTimerRef = useRef<number | null>(null);
   const holdFiredRef = useRef(false);
   const touchUsedRef = useRef(false);
+
+  const { setNavigate } = useActiveGamePolling(3000);
+  useEffect(() => { setNavigate(navigate); }, [navigate, setNavigate]);
 
   useEffect(() => {
     if (!currentGame) return;
@@ -109,18 +113,20 @@ export function GameTablePage() {
                     <span className="stat-value">{player.rebuyQty}</span>
                   </div>
                 </div>
-                <button
-                  className={`btn btn-primary rebuy-btn ${holdingId === player.id ? 'rebuy-btn-holding' : ''}`}
-                  onMouseDown={() => { if (!touchUsedRef.current) startHold(player.id); }}
-                  onMouseUp={() => { if (!touchUsedRef.current) endHold(player.id); touchUsedRef.current = false; }}
-                  onMouseLeave={cancelHold}
-                  onTouchStart={() => { touchUsedRef.current = true; startHold(player.id); }}
-                  onTouchEnd={() => { endHold(player.id); }}
-                  onTouchCancel={cancelHold}
-                  onTouchMove={(e) => { e.preventDefault(); cancelHold(); }}
-                >
-                  {holdingId === player.id ? '- Ребай' : '+ Ребай'}
-                </button>
+                {isOwner && (
+                  <button
+                    className={`btn btn-primary rebuy-btn ${holdingId === player.id ? 'rebuy-btn-holding' : ''}`}
+                    onMouseDown={() => { if (!touchUsedRef.current) startHold(player.id); }}
+                    onMouseUp={() => { if (!touchUsedRef.current) endHold(player.id); touchUsedRef.current = false; }}
+                    onMouseLeave={cancelHold}
+                    onTouchStart={() => { touchUsedRef.current = true; startHold(player.id); }}
+                    onTouchEnd={() => { endHold(player.id); }}
+                    onTouchCancel={cancelHold}
+                    onTouchMove={(e) => { e.preventDefault(); cancelHold(); }}
+                  >
+                    {holdingId === player.id ? '- Ребай' : '+ Ребай'}
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -129,29 +135,42 @@ export function GameTablePage() {
         )}
       </div>
 
-      <div className="card card-dashed">
-        <PlayerAutocomplete
-          players={players}
-          onAddPlayer={handleAddPlayer}
-          onRemovePlayer={() => {}}
-          showHistoryBtn={false}
-        />
-      </div>
+      {isOwner && (
+        <div className="card card-dashed">
+          <PlayerAutocomplete
+            players={players}
+            onAddPlayer={handleAddPlayer}
+            onRemovePlayer={() => {}}
+            showHistoryBtn={false}
+          />
+        </div>
+      )}
 
       <div className="fixed-actions">
         <div className="form-actions">
-          <button
-            className="btn btn-secondary"
-            onClick={() => setShowConfirm(true)}
-          >
-            Отмена
-          </button>
-          <button
-            className="btn btn-success"
-            onClick={() => navigate('/chips-count')}
-          >
-            Подсчёт
-          </button>
+          {isOwner ? (
+            <>
+              <button
+                className="btn btn-secondary"
+                onClick={() => setShowConfirm(true)}
+              >
+                Отмена
+              </button>
+              <button
+                className="btn btn-success"
+                onClick={() => navigate('/chips-count')}
+              >
+                Подсчёт
+              </button>
+            </>
+          ) : (
+            <button
+              className="btn btn-success"
+              onClick={() => navigate('/chips-count')}
+            >
+              Подсчёт
+            </button>
+          )}
         </div>
       </div>
 

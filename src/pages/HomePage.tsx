@@ -11,11 +11,17 @@ interface HomeCard {
 
 export function HomePage() {
   const navigate = useNavigate();
-  const { currentGame } = useGame();
+  const { currentGame, isOwner } = useGame();
+
+  const continueSub = currentGame
+    ? isOwner
+      ? `${currentGame.players.length} игроков`
+      : `Участник · ${currentGame.players.length} игроков`
+    : '';
 
   const cards: HomeCard[] = currentGame
     ? [
-        { iconImg: 'continue.png', title: 'Продолжить', sub: `${currentGame.players.length} игроков`, path: '/table', highlight: true },
+        { iconImg: 'continue.png', title: 'Продолжить', sub: continueSub, path: '/table', highlight: true },
         { iconImg: 'schedule.png', title: 'Расписание', sub: 'Запланированные игры', path: '/scheduled' },
         { iconImg: 'history.png', title: 'История', sub: '', path: '/history' },
         { iconImg: 'settings.png', title: 'Настройки', sub: '', path: '/settings' },

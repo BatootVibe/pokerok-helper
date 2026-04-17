@@ -1,4 +1,4 @@
-import { CompletedGame, ChipPreset, ScheduledGame } from '../types';
+import { CompletedGame, ChipPreset, ScheduledGame, Game } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 const API_TIMEOUT = 30000; // 30 секунд
@@ -198,4 +198,34 @@ export function apiAdminImportData(data: any): Promise<{ success: boolean }> {
     method: 'POST',
     body: JSON.stringify(data),
   });
+}
+
+// Active Games
+export function apiSaveActiveGame(game: Game, chipInputs: Record<string, Record<number, number>>): Promise<{ success: boolean }> {
+  return request('/api/active-games', {
+    method: 'POST',
+    body: JSON.stringify({ id: game.id, data: game, chipInputs }),
+  });
+}
+
+export interface ActiveGameResponse {
+  game: Game;
+  chipInputs: Record<string, Record<number, number>>;
+  isOwner: boolean;
+  updatedAt: string;
+}
+
+export function apiGetMyActiveGame(): Promise<ActiveGameResponse | null> {
+  return request<ActiveGameResponse | null>('/api/active-games/mine');
+}
+
+export function apiUpdateActiveGameChips(gameId: string, playerId: string, chips: Record<number, number>): Promise<{ success: boolean }> {
+  return request(`/api/active-games/${gameId}/chips`, {
+    method: 'PATCH',
+    body: JSON.stringify({ playerId, chipInputs: chips }),
+  });
+}
+
+export function apiDeleteActiveGame(gameId: string): Promise<{ success: boolean }> {
+  return request(`/api/active-games/${gameId}`, { method: 'DELETE' });
 }

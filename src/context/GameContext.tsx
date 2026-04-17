@@ -2,8 +2,8 @@ import { createContext, useContext, useState, useEffect, useCallback, useRef, Re
 import { Game, GamePlayer } from '../types';
 import { GAMES_KEY, CURRENT_GAME_ID_KEY, CHIP_INPUTS_KEY } from '../utils/constants';
 import { generateId } from '../utils/id';
-
-// === localStorage helpers (inline, изолированные) ===
+import { apiSaveActiveGame, apiGetMyActiveGame, apiDeleteActiveGame, ActiveGameResponse } from '../utils/api';
+import { apiGet } from '../utils/api';
 
 function loadGames(): Record<string, Game> {
   try {
@@ -30,10 +30,10 @@ function clearCurrentGameId() {
   localStorage.removeItem(CURRENT_GAME_ID_KEY);
 }
 
-// === Context ===
-
 interface GameContextType {
   currentGame: Game | null;
+  isOwner: boolean;
+  remoteChipInputs: Record<string, Record<number, number>>;
   createGame: (players: { name: string; userId?: number }[], startingChips: number, buyInRubles: number, chipPresetId: string | null, venue: string, chipPresetIsTemporary?: boolean) => void;
   addPlayer: (player: { name: string; userId?: number }) => void;
   incrementRebuy: (playerId: string) => void;
@@ -42,39 +42,89 @@ interface GameContextType {
   finishGame: () => void;
   selectedPresetId: string | null;
   setSelectedPresetId: (id: string | null) => void;
-  updateGame: (game: Game) => void;
+  updateGame: (game: Game | null) => void;
+  updateRemoteChipInputs: (chipInputs: Record<string, Record<number, number>>) => void;
+  syncFromServer: () => Promise<ActiveGameResponse | null>;
   chipPresetIsTemporary: boolean;
+  myPlayerId: string | null;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
 
 export function GameProvider({ children }: { children: ReactNode }) {
-  const [currentGame, setCurrentGame] = useState<Game | null>(null);
+  const [currentGame, _setCurrentGame] = useState<Game | null>(null);
+
+  const setCurrentGame = useCallback((value: Game | null | ((prev: Game | null) => Game | null)) => {
+    if (typeof value === 'function') {
+      _setCurrentGame(prev => {
+        const next = (value as (prev: Game | null) => Game | null)(prev);
+        currentGameRef.current = next;
+        return next;
+      });
+    } else {
+      currentGameRef.current = value;
+      _setCurrentGame(value);
+    }
+  }, []);
+  const [isOwner, setIsOwner] = useState(true);
+  const [remoteChipInputs, setRemoteChipInputs] = useState<Record<string, Record<number, number>>>({});
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
   const [chipPresetIsTemporary, setChipPresetIsTemporary] = useState(false);
   const [initialized, setInitialized] = useState(false);
+  const [myUserId, setMyUserId] = useState<number | null>(null);
   const saveTimerRef = useRef<number | null>(null);
+  const apiSaveTimerRef = useRef<number | null>(null);
+  const currentGameRef = useRef<Game | null>(null);
 
-  // Загрузка текущей игры при старте
   useEffect(() => {
-    const gameId = loadCurrentGameId();
-    if (gameId) {
-      const games = loadGames();
-      if (games[gameId]) {
-        setCurrentGame(games[gameId]);
-        setSelectedPresetId(games[gameId].chipPresetId);
+    let mounted = true;
+
+    (async () => {
+      try {
+        const profile = await apiGet<{ id: number; name: string } | null>('/api/users/me');
+        if (mounted && profile && profile.id) {
+          setMyUserId(profile.id);
+        }
+      } catch {}
+
+      const gameId = loadCurrentGameId();
+      if (gameId) {
+        const games = loadGames();
+        if (games[gameId]) {
+          if (mounted) {
+            setCurrentGame(games[gameId]);
+            setSelectedPresetId(games[gameId].chipPresetId);
+            setIsOwner(true);
+          }
+          setInitialized(true);
+          return;
+        }
       }
-    }
-    setInitialized(true);
+
+      try {
+        const result = await apiGetMyActiveGame();
+        if (mounted && result) {
+          setCurrentGame(result.game);
+          setSelectedPresetId(result.game.chipPresetId);
+          setIsOwner(result.isOwner);
+          setRemoteChipInputs(result.chipInputs || {});
+          saveCurrentGameId(result.game.id);
+          const games = loadGames();
+          games[result.game.id] = result.game;
+          saveGames(games);
+        }
+      } catch {}
+
+      if (mounted) setInitialized(true);
+    })();
+
+    return () => { mounted = false; };
   }, []);
 
-  // Debounced сохранение при каждом изменении (не чаще 300мс)
   useEffect(() => {
     if (!initialized || !currentGame) return;
 
-    if (saveTimerRef.current) {
-      clearTimeout(saveTimerRef.current);
-    }
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
 
     saveTimerRef.current = window.setTimeout(() => {
       const games = loadGames();
@@ -85,13 +135,36 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }, 300);
 
     return () => {
-      if (saveTimerRef.current) {
-        clearTimeout(saveTimerRef.current);
-      }
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
   }, [currentGame, initialized]);
 
+  useEffect(() => {
+    if (!initialized || !currentGame || !isOwner) return;
+
+    if (apiSaveTimerRef.current) clearTimeout(apiSaveTimerRef.current);
+
+    apiSaveTimerRef.current = window.setTimeout(() => {
+      if (!currentGame) return;
+      apiSaveActiveGame(currentGame, {}).catch(() => {});
+      apiSaveTimerRef.current = null;
+    }, 500);
+
+    return () => {
+      if (apiSaveTimerRef.current) clearTimeout(apiSaveTimerRef.current);
+    };
+  }, [currentGame, initialized, isOwner]);
+
   const createGame = useCallback((players: { name: string; userId?: number }[], startingChips: number, buyInRubles: number, chipPresetId: string | null, venue: string, chipPresetIsTemporary?: boolean) => {
+    const prevGame = currentGameRef.current;
+    if (prevGame) {
+      apiDeleteActiveGame(prevGame.id).catch(() => {});
+      const games = loadGames();
+      delete games[prevGame.id];
+      saveGames(games);
+      localStorage.removeItem(CHIP_INPUTS_KEY + prevGame.id);
+    }
+
     const safeStartingChips = startingChips > 0 ? startingChips : 1;
     const gamePlayers: GamePlayer[] = players.map(p => ({
       id: generateId(),
@@ -112,8 +185,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
     };
 
     setCurrentGame(game);
+    currentGameRef.current = game;
     setSelectedPresetId(chipPresetId);
     setChipPresetIsTemporary(!!chipPresetIsTemporary);
+    setIsOwner(true);
+    setRemoteChipInputs({});
+
+    apiSaveActiveGame(game, {}).catch(() => {});
   }, []);
 
   const addPlayer = useCallback((player: { name: string; userId?: number }) => {
@@ -155,34 +233,80 @@ export function GameProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const updateGame = useCallback((game: Game) => {
+  const updateGame = useCallback((game: Game | null) => {
     setCurrentGame(game);
+    if (!game) {
+      setSelectedPresetId(null);
+      setChipPresetIsTemporary(false);
+    }
   }, []);
 
+  const updateRemoteChipInputs = useCallback((chipInputs: Record<string, Record<number, number>>) => {
+    setRemoteChipInputs(chipInputs);
+  }, []);
+
+  const syncFromServer = useCallback(async (): Promise<ActiveGameResponse | null> => {
+    try {
+      const result = await apiGetMyActiveGame();
+      if (!result) {
+        setCurrentGame(null);
+        clearCurrentGameId();
+        const games = loadGames();
+        if (currentGame?.id) {
+          delete games[currentGame.id];
+          saveGames(games);
+        }
+        return null;
+      }
+      setCurrentGame(result.game);
+      setSelectedPresetId(result.game.chipPresetId);
+      setIsOwner(result.isOwner);
+      setRemoteChipInputs(result.chipInputs || {});
+
+      const games = loadGames();
+      games[result.game.id] = result.game;
+      saveGames(games);
+      saveCurrentGameId(result.game.id);
+
+      return result;
+    } catch {
+      return null;
+    }
+  }, [currentGame]);
+
   const finishGame = useCallback(() => {
-    // Сначала flush-им pending save
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = null;
     }
-    
-    // Удаляем из активных игр ПОСЛЕ сохранения
+    if (apiSaveTimerRef.current) {
+      clearTimeout(apiSaveTimerRef.current);
+      apiSaveTimerRef.current = null;
+    }
+
     const game = currentGame;
     if (game) {
       const games = loadGames();
       delete games[game.id];
       saveGames(games);
       clearCurrentGameId();
-      // Очищаем введённые фишки
       localStorage.removeItem(CHIP_INPUTS_KEY + game.id);
+
+      apiDeleteActiveGame(game.id).catch(() => {});
     }
-    
+
     setCurrentGame(null);
     setSelectedPresetId(null);
     setChipPresetIsTemporary(false);
+    setIsOwner(true);
+    setRemoteChipInputs({});
   }, [currentGame]);
 
-  // Убран useEffect удаления — логика перенесена в finishGame
+  const myPlayerId = (() => {
+    if (!currentGame || !myUserId) return null;
+    const me = currentGame.players.find(p => p.userId === myUserId);
+    return me?.id ?? null;
+  })();
 
   if (!initialized) {
     return (
@@ -196,6 +320,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
     <GameContext.Provider
       value={{
         currentGame,
+        isOwner,
+        remoteChipInputs,
         createGame,
         addPlayer,
         incrementRebuy,
@@ -205,7 +331,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
         selectedPresetId,
         setSelectedPresetId,
         updateGame,
+        updateRemoteChipInputs,
+        syncFromServer,
         chipPresetIsTemporary,
+        myPlayerId,
       }}
     >
       {children}

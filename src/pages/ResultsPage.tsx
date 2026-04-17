@@ -6,24 +6,27 @@ import { showToast } from '../components/Toast';
 import { CompletedGame, GameResult } from '../types';
 import { HeaderBack } from '../components/HeaderBack';
 import { useVerifiedPlayers } from '../utils/hooks';
+import { useActiveGamePolling } from '../utils/hooks';
 import { calculateDebts } from '../utils/debt';
 import { formatDuration } from '../utils/date';
 
 export function ResultsPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { currentGame, finishGame, selectedPresetId, chipPresetIsTemporary } = useGame();
+  const { currentGame, finishGame, selectedPresetId, chipPresetIsTemporary, isOwner } = useGame();
 
   const results = location.state?.results as GameResult[] | undefined;
   const [activeTab, setActiveTab] = useState<'results' | 'debts'>('results');
   const { isVerified } = useVerifiedPlayers();
+
+  const { setNavigate } = useActiveGamePolling(3000);
+  useEffect(() => { setNavigate(navigate); }, [navigate, setNavigate]);
 
   const verifiedNames = useMemo(() => {
     if (!results) return new Set<string>();
     return new Set(results.filter(r => r.userId).map(r => r.playerName));
   }, [results]);
 
-  // Auth state
   const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
   const currentTgId = tgUser ? String(tgUser.id) : null;
   const [isBound, setIsBound] = useState(false);
@@ -190,14 +193,22 @@ export function ResultsPage() {
       </div>
 
       <div className="fixed-actions">
-        {isBound ? (
-          <button className="btn btn-success" onClick={handleFinish} disabled={finishing}>
-            {finishing ? 'Сохранение...' : '✅ Завершить и сохранить'}
-          </button>
+        {isOwner ? (
+          isBound ? (
+            <button className="btn btn-success" onClick={handleFinish} disabled={finishing}>
+              {finishing ? 'Сохранение...' : '✅ Завершить и сохранить'}
+            </button>
+          ) : (
+            <button className="btn btn-danger" onClick={handleFinish} disabled={finishing}>
+              {finishing ? 'Завершение...' : '✅ Завершить без сохранения'}
+            </button>
+          )
         ) : (
-          <button className="btn btn-danger" onClick={handleFinish} disabled={finishing}>
-            {finishing ? 'Завершение...' : '✅ Завершить без сохранения'}
-          </button>
+          <div className="card" style={{ textAlign: 'center' }}>
+            <p className="text-muted text-sm">
+              Ожидайте, пока создатель завершит игру
+            </p>
+          </div>
         )}
       </div>
     </div>

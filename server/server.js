@@ -49,9 +49,19 @@ db.exec(`CREATE TABLE IF NOT EXISTS notifications_sent (
   UNIQUE(scheduled_game_id, type)
 )`);
 
-// Зачистка старых временных пресетов (старше 24ч)
+db.exec(`CREATE TABLE IF NOT EXISTS active_games (
+  id TEXT PRIMARY KEY,
+  data TEXT NOT NULL,
+  chip_inputs TEXT NOT NULL DEFAULT '{}',
+  owner_user_id INTEGER NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY (owner_user_id) REFERENCES users(id)
+)`);
+
+// Зачистка старых активных игр (старше 24ч) и временных пресетов
 try {
   const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  db.prepare("DELETE FROM active_games WHERE updated_at < ?").run(cutoff);
   db.prepare("DELETE FROM presets WHERE is_temporary = 1 AND created_at IS NOT NULL AND created_at < ?").run(cutoff);
 } catch {}
 
@@ -551,7 +561,7 @@ app.delete('/api/presets/:id', requireTelegramAuth, strictLimiter, (req, res) =>
 // Профиль текущего пользователя (определяется из подписи)
 app.get('/api/users/me', requireTelegramAuth, (req, res) => {
   try {
-    const user = db.prepare('SELECT player_name as name FROM users WHERE id = ?').get(req.userId);
+    const user = db.prepare('SELECT id, player_name as name FROM users WHERE id = ?').get(req.userId);
     const ADMIN_TG_ID = process.env.ADMIN_TG_ID;
     if (!ADMIN_TG_ID) return res.status(500).json({ error: 'ADMIN_TG_ID не настроен' });
     res.json({ ...user, isAdmin: req.tgId === ADMIN_TG_ID });
@@ -734,6 +744,119 @@ app.delete('/api/scheduled/:id', requireTelegramAuth, strictLimiter, (req, res) 
   } catch (dbErr) {
     console.error('Failed to delete scheduled game:', dbErr.message);
     res.status(500).json({ error: 'Ошибка удаления' });
+  }
+});
+
+// ===== ACTIVE GAMES =====
+
+app.post('/api/active-games', requireTelegramAuth, strictLimiter, (req, res) => {
+  const { id, data, chipInputs } = req.body;
+  if (!id || !data) return res.status(400).json({ error: 'Missing id or data' });
+
+  const existing = db.prepare('SELECT owner_user_id FROM active_games WHERE id = ?').get(id);
+  if (existing && existing.owner_user_id !== req.userId) {
+    return res.status(403).json({ error: 'Только создатель может обновлять игру' });
+  }
+
+  try {
+    const now = new Date().toISOString();
+    db.prepare(
+      'INSERT OR REPLACE INTO active_games (id, data, chip_inputs, owner_user_id, updated_at) VALUES (?, ?, ?, ?, ?)'
+    ).run(id, typeof data === 'string' ? data : JSON.stringify(data), JSON.stringify(chipInputs || {}), req.userId, now);
+    res.json({ success: true });
+  } catch (dbErr) {
+    console.error('Failed to save active game:', dbErr.message);
+    res.status(500).json({ error: 'Ошибка сохранения активной игры' });
+  }
+});
+
+app.get('/api/active-games/mine', requireTelegramAuth, (req, res) => {
+  try {
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    db.prepare('DELETE FROM active_games WHERE updated_at < ?').run(cutoff);
+
+    const allActive = db.prepare('SELECT * FROM active_games').all();
+    const userId = req.userId;
+
+    for (const row of allActive) {
+      let game;
+      try { game = JSON.parse(row.data); } catch { continue; }
+
+      const players = Array.isArray(game.players) ? game.players : [];
+      const isOwner = row.owner_user_id === userId;
+      const isParticipant = players.some(p => p.userId === userId);
+
+      if (isOwner || isParticipant) {
+        let chipInputs;
+        try { chipInputs = JSON.parse(row.chip_inputs); } catch { chipInputs = {}; }
+
+        return res.json({
+          game,
+          chipInputs,
+          isOwner,
+          updatedAt: row.updated_at,
+        });
+      }
+    }
+
+    res.json(null);
+  } catch (dbErr) {
+    console.error('Failed to get active game:', dbErr.message);
+    res.status(500).json({ error: 'Ошибка получения активной игры' });
+  }
+});
+
+app.patch('/api/active-games/:id/chips', requireTelegramAuth, strictLimiter, (req, res) => {
+  const { id } = req.params;
+  const { playerId, chipInputs: playerChips } = req.body;
+
+  if (!playerId || !playerChips) return res.status(400).json({ error: 'Missing playerId or chipInputs' });
+
+  try {
+    const row = db.prepare('SELECT * FROM active_games WHERE id = ?').get(id);
+    if (!row) return res.status(404).json({ error: 'Активная игра не найдена' });
+
+    let game;
+    try { game = JSON.parse(row.data); } catch { return res.status(500).json({ error: 'Corrupted game data' }); }
+
+    const players = Array.isArray(game.players) ? game.players : [];
+    const isOwner = row.owner_user_id === req.userId;
+    const participant = players.find(p => p.id === playerId);
+    if (!isOwner && (!participant || participant.userId !== req.userId)) {
+      return res.status(403).json({ error: 'Можно обновлять только свои фишки' });
+    }
+
+    let chipInputs;
+    try { chipInputs = JSON.parse(row.chip_inputs); } catch { chipInputs = {}; }
+
+    chipInputs[playerId] = playerChips;
+
+    const now = new Date().toISOString();
+    db.prepare('UPDATE active_games SET chip_inputs = ?, updated_at = ? WHERE id = ?')
+      .run(JSON.stringify(chipInputs), now, id);
+
+    res.json({ success: true });
+  } catch (dbErr) {
+    console.error('Failed to update chips:', dbErr.message);
+    res.status(500).json({ error: 'Ошибка обновления фишек' });
+  }
+});
+
+app.delete('/api/active-games/:id', requireTelegramAuth, strictLimiter, (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const row = db.prepare('SELECT owner_user_id FROM active_games WHERE id = ?').get(id);
+    if (!row) return res.status(404).json({ error: 'Активная игра не найдена' });
+    if (row.owner_user_id !== req.userId) {
+      return res.status(403).json({ error: 'Только создатель может завершить игру' });
+    }
+
+    db.prepare('DELETE FROM active_games WHERE id = ?').run(id);
+    res.json({ success: true });
+  } catch (dbErr) {
+    console.error('Failed to delete active game:', dbErr.message);
+    res.status(500).json({ error: 'Ошибка удаления активной игры' });
   }
 });
 
