@@ -52,35 +52,6 @@ export function AdminPage() {
   const [editingName, setEditingName] = useState('');
   const [importing, setImporting] = useState(false);
 
-  useEffect(() => {
-    getUserProfile().then(profile => {
-      if (profile?.isAdmin) {
-        setAuthorized(true);
-      } else {
-        setAuthorized(false);
-      }
-    }).catch(() => setAuthorized(false));
-  }, []);
-
-  if (authorized === false) {
-    return (
-      <div className="page">
-        <HeaderBack title="Админ-панель" />
-        <div className="card">
-          <p className="text-center text-muted">Доступ запрещён</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (authorized === null) {
-    return (
-      <div className="page" style={{ justifyContent: 'center', alignItems: 'center' }}>
-        <p style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>Загрузка...</p>
-      </div>
-    );
-  }
-
   const refresh = useCallback(async () => {
     try {
       const [s, g, u, p, v, sc] = await Promise.all([
@@ -102,7 +73,35 @@ export function AdminPage() {
     }
   }, []);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => {
+    getUserProfile().then(profile => {
+      if (profile?.isAdmin) {
+        setAuthorized(true);
+        refresh();
+      } else {
+        setAuthorized(false);
+      }
+    }).catch(() => setAuthorized(false));
+  }, [refresh]);
+
+  if (authorized === false) {
+    return (
+      <div className="page">
+        <HeaderBack title="Админ-панель" />
+        <div className="card">
+          <p className="text-center text-muted">Доступ запрещён</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (authorized === null) {
+    return (
+      <div className="page" style={{ justifyContent: 'center', alignItems: 'center' }}>
+        <p style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>Загрузка...</p>
+      </div>
+    );
+  }
 
   const handleClearAll = () => {
     setConfirmAction({
