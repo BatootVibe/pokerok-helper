@@ -48,6 +48,9 @@ export function useVerifiedPlayers() {
 
 export function useActiveGamePolling(intervalMs = 3000) {
   const { currentGame, isOwner, syncFromServer } = useGame();
+  const syncRef = useRef(syncFromServer);
+  syncRef.current = syncFromServer;
+
   const navigateRef = useRef<((path: string) => void) | null>(null);
 
   const setNavigate = useCallback((nav: (path: string) => void) => {
@@ -58,14 +61,16 @@ export function useActiveGamePolling(intervalMs = 3000) {
     if (!currentGame || isOwner) return;
 
     const id = setInterval(async () => {
-      const result = await syncFromServer();
-      if (!result) {
-        if (navigateRef.current) navigateRef.current('/');
-      }
+      await syncRef.current();
+      // If game was deleted, syncFromServer sets currentGame to null,
+      // which triggers this effect's cleanup and stops the interval.
+      // Navigate to home if we're still on a game page.
+      // The component using this hook will re-render with null currentGame
+      // and its own "game not found" guard will redirect.
     }, intervalMs);
 
     return () => clearInterval(id);
-  }, [currentGame, isOwner, syncFromServer, intervalMs]);
+  }, [currentGame, isOwner, intervalMs]);
 
   return { setNavigate };
 }

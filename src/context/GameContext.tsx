@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback, useRef, Re
 import { Game, GamePlayer } from '../types';
 import { GAMES_KEY, CURRENT_GAME_ID_KEY, CHIP_INPUTS_KEY } from '../utils/constants';
 import { generateId } from '../utils/id';
-import { apiSaveActiveGame, apiGetMyActiveGame, apiDeleteActiveGame, ActiveGameResponse } from '../utils/api';
+import { apiSaveActiveGame, apiGetMyActiveGame, apiDeleteActiveGame } from '../utils/api';
 import { apiGet } from '../utils/api';
 
 function loadGames(): Record<string, Game> {
@@ -44,7 +44,7 @@ interface GameContextType {
   setSelectedPresetId: (id: string | null) => void;
   updateGame: (game: Game | null) => void;
   updateRemoteChipInputs: (chipInputs: Record<string, Record<number, number>>) => void;
-  syncFromServer: () => Promise<ActiveGameResponse | null>;
+  syncFromServer: () => Promise<void>;
   chipPresetIsTemporary: boolean;
   myPlayerId: string | null;
 }
@@ -53,6 +53,16 @@ const GameContext = createContext<GameContextType | undefined>(undefined);
 
 export function GameProvider({ children }: { children: ReactNode }) {
   const [currentGame, _setCurrentGame] = useState<Game | null>(null);
+  const [isOwner, setIsOwner] = useState(true);
+  const [remoteChipInputs, setRemoteChipInputs] = useState<Record<string, Record<number, number>>>({});
+  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
+  const [chipPresetIsTemporary, setChipPresetIsTemporary] = useState(false);
+  const [initialized, setInitialized] = useState(false);
+  const [myUserId, setMyUserId] = useState<number | null>(null);
+  const saveTimerRef = useRef<number | null>(null);
+  const apiSaveTimerRef = useRef<number | null>(null);
+  const currentGameRef = useRef<Game | null>(null);
+  const remoteChipInputsRef = useRef<Record<string, Record<number, number>>>({});
 
   const setCurrentGame = useCallback((value: Game | null | ((prev: Game | null) => Game | null)) => {
     if (typeof value === 'function') {
@@ -66,55 +76,57 @@ export function GameProvider({ children }: { children: ReactNode }) {
       _setCurrentGame(value);
     }
   }, []);
-  const [isOwner, setIsOwner] = useState(true);
-  const [remoteChipInputs, setRemoteChipInputs] = useState<Record<string, Record<number, number>>>({});
-  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
-  const [chipPresetIsTemporary, setChipPresetIsTemporary] = useState(false);
-  const [initialized, setInitialized] = useState(false);
-  const [myUserId, setMyUserId] = useState<number | null>(null);
-  const saveTimerRef = useRef<number | null>(null);
-  const apiSaveTimerRef = useRef<number | null>(null);
-  const currentGameRef = useRef<Game | null>(null);
 
+  // === Initialization: always check server ===
   useEffect(() => {
     let mounted = true;
 
     (async () => {
+      // Get my userId from server
       try {
         const profile = await apiGet<{ id: number; name: string } | null>('/api/users/me');
-        if (mounted && profile && profile.id) {
+        if (mounted && profile?.id) {
           setMyUserId(profile.id);
         }
       } catch {}
 
-      const gameId = loadCurrentGameId();
-      if (gameId) {
-        const games = loadGames();
-        if (games[gameId]) {
-          if (mounted) {
-            setCurrentGame(games[gameId]);
-            setSelectedPresetId(games[gameId].chipPresetId);
-            setIsOwner(true);
-          }
-          setInitialized(true);
-          return;
-        }
-      }
-
+      // Try server first — even if localStorage has a game
       try {
         const result = await apiGetMyActiveGame();
-        console.log('[GameContext] apiGetMyActiveGame result=', result);
         if (mounted && result) {
           setCurrentGame(result.game);
           setSelectedPresetId(result.game.chipPresetId);
           setIsOwner(result.isOwner);
           setRemoteChipInputs(result.chipInputs || {});
+          remoteChipInputsRef.current = result.chipInputs || {};
           saveCurrentGameId(result.game.id);
           const games = loadGames();
           games[result.game.id] = result.game;
           saveGames(games);
+          setInitialized(true);
+          return;
         }
-      } catch {}
+        // Server returned null — game was deleted, clean localStorage
+        const gameId = loadCurrentGameId();
+        if (gameId) {
+          const games = loadGames();
+          delete games[gameId];
+          saveGames(games);
+          clearCurrentGameId();
+          localStorage.removeItem(CHIP_INPUTS_KEY + gameId);
+        }
+      } catch {
+        // API unavailable — fallback to localStorage
+        const gameId = loadCurrentGameId();
+        if (gameId) {
+          const games = loadGames();
+          if (games[gameId] && mounted) {
+            setCurrentGame(games[gameId]);
+            setSelectedPresetId(games[gameId].chipPresetId);
+            setIsOwner(true);
+          }
+        }
+      }
 
       if (mounted) setInitialized(true);
     })();
@@ -122,6 +134,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     return () => { mounted = false; };
   }, []);
 
+  // Debounced save to localStorage
   useEffect(() => {
     if (!initialized || !currentGame) return;
 
@@ -140,14 +153,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
     };
   }, [currentGame, initialized]);
 
+  // Debounced save to server (owner only) — sends game data WITHOUT chipInputs
+  // Server will preserve existing chipInputs when chipInputs is empty
   useEffect(() => {
     if (!initialized || !currentGame || !isOwner) return;
 
     if (apiSaveTimerRef.current) clearTimeout(apiSaveTimerRef.current);
 
     apiSaveTimerRef.current = window.setTimeout(() => {
-      if (!currentGame) return;
-      apiSaveActiveGame(currentGame, {}).catch(() => {});
+      if (!currentGameRef.current) return;
+      apiSaveActiveGame(currentGameRef.current, {}).catch(() => {});
       apiSaveTimerRef.current = null;
     }, 500);
 
@@ -157,7 +172,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, [currentGame, initialized, isOwner]);
 
   const createGame = useCallback((players: { name: string; userId?: number }[], startingChips: number, buyInRubles: number, chipPresetId: string | null, venue: string, chipPresetIsTemporary?: boolean) => {
-    console.log('[GameContext] createGame called, players=', players.map(p => ({ name: p.name, userId: p.userId })));
     const prevGame = currentGameRef.current;
     if (prevGame) {
       apiDeleteActiveGame(prevGame.id).catch(() => {});
@@ -187,13 +201,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
     };
 
     setCurrentGame(game);
-    currentGameRef.current = game;
     setSelectedPresetId(chipPresetId);
     setChipPresetIsTemporary(!!chipPresetIsTemporary);
     setIsOwner(true);
     setRemoteChipInputs({});
+    remoteChipInputsRef.current = {};
 
-    apiSaveActiveGame(game, {}).then(r => console.log('[GameContext] apiSaveActiveGame ok', r)).catch(e => console.error('[GameContext] apiSaveActiveGame FAIL', e));
+    apiSaveActiveGame(game, {}).catch(() => {});
   }, []);
 
   const addPlayer = useCallback((player: { name: string; userId?: number }) => {
@@ -245,36 +259,54 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   const updateRemoteChipInputs = useCallback((chipInputs: Record<string, Record<number, number>>) => {
     setRemoteChipInputs(chipInputs);
+    remoteChipInputsRef.current = chipInputs;
   }, []);
 
-  const syncFromServer = useCallback(async (): Promise<ActiveGameResponse | null> => {
-    try {
-      const result = await apiGetMyActiveGame();
-      if (!result) {
-        setCurrentGame(null);
-        clearCurrentGameId();
-        const games = loadGames();
-        if (currentGame?.id) {
-          delete games[currentGame.id];
-          saveGames(games);
+  // syncFromServer — no circular dependency, uses refs
+  const syncFromServerRef = useRef<() => Promise<void>>(async () => {});
+
+  useEffect(() => {
+    syncFromServerRef.current = async () => {
+      try {
+        const result = await apiGetMyActiveGame();
+        if (!result) {
+          // Game deleted on server — clean up
+          const g = currentGameRef.current;
+          if (g) {
+            const games = loadGames();
+            delete games[g.id];
+            saveGames(games);
+            localStorage.removeItem(CHIP_INPUTS_KEY + g.id);
+          }
+          clearCurrentGameId();
+          setCurrentGame(null);
+          setSelectedPresetId(null);
+          setChipPresetIsTemporary(false);
+          setIsOwner(true);
+          setRemoteChipInputs({});
+          remoteChipInputsRef.current = {};
+          return;
         }
-        return null;
+
+        setCurrentGame(result.game);
+        setSelectedPresetId(result.game.chipPresetId);
+        setIsOwner(result.isOwner);
+        setRemoteChipInputs(result.chipInputs || {});
+        remoteChipInputsRef.current = result.chipInputs || {};
+
+        const games = loadGames();
+        games[result.game.id] = result.game;
+        saveGames(games);
+        saveCurrentGameId(result.game.id);
+      } catch {
+        // API unavailable — keep current state
       }
-      setCurrentGame(result.game);
-      setSelectedPresetId(result.game.chipPresetId);
-      setIsOwner(result.isOwner);
-      setRemoteChipInputs(result.chipInputs || {});
+    };
+  }, []);
 
-      const games = loadGames();
-      games[result.game.id] = result.game;
-      saveGames(games);
-      saveCurrentGameId(result.game.id);
-
-      return result;
-    } catch {
-      return null;
-    }
-  }, [currentGame]);
+  const syncFromServer = useCallback(async () => {
+    await syncFromServerRef.current();
+  }, []);
 
   const finishGame = useCallback(() => {
     if (saveTimerRef.current) {
@@ -286,7 +318,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       apiSaveTimerRef.current = null;
     }
 
-    const game = currentGame;
+    const game = currentGameRef.current;
     if (game) {
       const games = loadGames();
       delete games[game.id];
@@ -302,7 +334,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setChipPresetIsTemporary(false);
     setIsOwner(true);
     setRemoteChipInputs({});
-  }, [currentGame]);
+    remoteChipInputsRef.current = {};
+  }, []);
 
   const myPlayerId = (() => {
     if (!currentGame || !myUserId) return null;

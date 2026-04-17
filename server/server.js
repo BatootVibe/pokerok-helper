@@ -753,8 +753,6 @@ app.post('/api/active-games', requireTelegramAuth, strictLimiter, (req, res) => 
   const { id, data, chipInputs } = req.body;
   if (!id || !data) return res.status(400).json({ error: 'Missing id or data' });
 
-  console.log('[active-games] POST userId=', req.userId, 'id=', id, 'players=', data?.players?.map(p => ({ name: p.name, userId: p.userId })));
-
   const existing = db.prepare('SELECT owner_user_id FROM active_games WHERE id = ?').get(id);
   if (existing && existing.owner_user_id !== req.userId) {
     return res.status(403).json({ error: 'Только создатель может обновлять игру' });
@@ -762,9 +760,20 @@ app.post('/api/active-games', requireTelegramAuth, strictLimiter, (req, res) => 
 
   try {
     const now = new Date().toISOString();
+    const gameData = typeof data === 'string' ? data : JSON.stringify(data);
+
+    // Preserve existing chip_inputs if chipInputs is empty/not provided
+    let finalChipInputs;
+    if (chipInputs && Object.keys(chipInputs).length > 0) {
+      finalChipInputs = JSON.stringify(chipInputs);
+    } else {
+      const existingRow = db.prepare('SELECT chip_inputs FROM active_games WHERE id = ?').get(id);
+      finalChipInputs = existingRow ? existingRow.chip_inputs : '{}';
+    }
+
     db.prepare(
       'INSERT OR REPLACE INTO active_games (id, data, chip_inputs, owner_user_id, updated_at) VALUES (?, ?, ?, ?, ?)'
-    ).run(id, typeof data === 'string' ? data : JSON.stringify(data), JSON.stringify(chipInputs || {}), req.userId, now);
+    ).run(id, gameData, finalChipInputs, req.userId, now);
     res.json({ success: true });
   } catch (dbErr) {
     console.error('Failed to save active game:', dbErr.message);
@@ -779,11 +788,6 @@ app.get('/api/active-games/mine', requireTelegramAuth, (req, res) => {
 
     const allActive = db.prepare('SELECT * FROM active_games').all();
     const userId = req.userId;
-
-    console.log('[active-games] GET mine userId=', userId, 'activeCount=', allActive.length);
-    for (const row of allActive) {
-      console.log('[active-games]   checking game=', row.id, 'owner=', row.owner_user_id);
-    }
 
     for (const row of allActive) {
       let game;
