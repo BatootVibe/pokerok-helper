@@ -103,6 +103,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
       try {
         const result = await apiGetMyActiveGame();
+        console.log('[GameContext] apiGetMyActiveGame result=', result);
         if (mounted && result) {
           setCurrentGame(result.game);
           setSelectedPresetId(result.game.chipPresetId);
@@ -156,6 +157,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, [currentGame, initialized, isOwner]);
 
   const createGame = useCallback((players: { name: string; userId?: number }[], startingChips: number, buyInRubles: number, chipPresetId: string | null, venue: string, chipPresetIsTemporary?: boolean) => {
+    console.log('[GameContext] createGame called, players=', players.map(p => ({ name: p.name, userId: p.userId })));
     const prevGame = currentGameRef.current;
     if (prevGame) {
       apiDeleteActiveGame(prevGame.id).catch(() => {});
@@ -191,7 +193,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setIsOwner(true);
     setRemoteChipInputs({});
 
-    apiSaveActiveGame(game, {}).catch(() => {});
+    apiSaveActiveGame(game, {}).then(r => console.log('[GameContext] apiSaveActiveGame ok', r)).catch(e => console.error('[GameContext] apiSaveActiveGame FAIL', e));
   }, []);
 
   const addPlayer = useCallback((player: { name: string; userId?: number }) => {

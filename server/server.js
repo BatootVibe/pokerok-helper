@@ -753,6 +753,8 @@ app.post('/api/active-games', requireTelegramAuth, strictLimiter, (req, res) => 
   const { id, data, chipInputs } = req.body;
   if (!id || !data) return res.status(400).json({ error: 'Missing id or data' });
 
+  console.log('[active-games] POST userId=', req.userId, 'id=', id, 'players=', data?.players?.map(p => ({ name: p.name, userId: p.userId })));
+
   const existing = db.prepare('SELECT owner_user_id FROM active_games WHERE id = ?').get(id);
   if (existing && existing.owner_user_id !== req.userId) {
     return res.status(403).json({ error: 'Только создатель может обновлять игру' });
@@ -777,6 +779,11 @@ app.get('/api/active-games/mine', requireTelegramAuth, (req, res) => {
 
     const allActive = db.prepare('SELECT * FROM active_games').all();
     const userId = req.userId;
+
+    console.log('[active-games] GET mine userId=', userId, 'activeCount=', allActive.length);
+    for (const row of allActive) {
+      console.log('[active-games]   checking game=', row.id, 'owner=', row.owner_user_id);
+    }
 
     for (const row of allActive) {
       let game;
