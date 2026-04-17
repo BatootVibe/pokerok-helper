@@ -12,8 +12,8 @@ export function ChipCountPage() {
 
   const [presets, setPresets] = useState<ChipPreset[]>([]);
   const [chipInputs, setChipInputs] = useState<Record<string, Record<number, number>>>({});
+  const [expandedPlayerId, setExpandedPlayerId] = useState<string | null>(null);
 
-  // Restore saved inputs from localStorage
   useEffect(() => {
     loadPresets().then(p => setPresets(p));
 
@@ -29,7 +29,6 @@ export function ChipCountPage() {
     }
   }, [currentGame]);
 
-  // Save inputs to localStorage on every change
   useEffect(() => {
     if (!currentGame || Object.keys(chipInputs).length === 0) return;
     localStorage.setItem(CHIP_INPUTS_KEY + currentGame.id, JSON.stringify(chipInputs));
@@ -110,39 +109,90 @@ export function ChipCountPage() {
     navigate('/results', { state: { results } });
   };
 
+  const getPlayerTotalChips = (playerId: string): number => {
+    const inputs = chipInputs[playerId] || {};
+    let total = 0;
+    selectedPreset.chips.forEach((chip, index) => {
+      total += (inputs[index] || 0) * chip.nominal;
+    });
+    return total;
+  };
+
+  const isPlayerFilled = (playerId: string): boolean => {
+    const inputs = chipInputs[playerId] || {};
+    return Object.values(inputs).some(v => v > 0);
+  };
+
+  const filledCount = currentGame.players.filter(p => isPlayerFilled(p.id)).length;
+  const allFilled = filledCount === currentGame.players.length;
+
   return (
     <div className="page">
       <HeaderBack title="Подсчёт фишек" />
 
-      {currentGame.players.map(player => (
-        <div key={player.id} className="card card-finish">
-          <div className="card-header">
-            <h3 className={player.userId ? 'verified-player' : ''}>
-              {player.name}
-            </h3>
-            <span className="text-muted text-sm">
-              Было: <b>{currentGame.startingChips * (1 + player.rebuyQty)} pts</b>
-            </span>
-          </div>
-          <div className="chip-grid">
-            {selectedPreset.chips
-              .map((chip, i) => ({ chip, origIndex: i }))
-              .sort((a, b) => a.chip.nominal - b.chip.nominal)
-              .map(({ chip, origIndex }) => (
-                <ChipRow
-                  key={chip.color + chip.nominal}
-                  chip={chip}
-                  value={chipInputs[player.id]?.[origIndex] || 0}
-                  onChange={value => handleChipChange(player.id, origIndex, value)}
-                />
-              ))}
-          </div>
+      <div className="chip-progress-bar">
+        <div className="chip-progress-text">{filledCount}/{currentGame.players.length} введено</div>
+        <div className="chip-progress-track">
+          <div className="chip-progress-fill" style={{ width: `${(filledCount / currentGame.players.length) * 100}%` }} />
         </div>
-      ))}
+      </div>
+
+      {currentGame.players.map(player => {
+        const isExpanded = expandedPlayerId === player.id;
+        const filled = isPlayerFilled(player.id);
+        const totalChips = getPlayerTotalChips(player.id);
+        const wasChips = currentGame.startingChips * (1 + player.rebuyQty);
+
+        return (
+          <div key={player.id} className={`card chip-accordion ${isExpanded ? 'chip-accordion-expanded' : ''} ${filled ? 'chip-accordion-filled' : ''}`}>
+            <div className="chip-accordion-header" onClick={() => setExpandedPlayerId(isExpanded ? null : player.id)}>
+              <div className="chip-accordion-info">
+                <span className={player.userId ? 'verified-player' : ''}>{player.name}</span>
+                <span className="text-muted text-sm">
+                  Было: <b>{wasChips} pts</b>
+                </span>
+              </div>
+              <div className="chip-accordion-right">
+                {filled && (
+                  <span className={totalChips >= wasChips ? 'result-positive' : 'result-negative'}>
+                    {totalChips} pts
+                  </span>
+                )}
+                {!filled && <span className="chip-accordion-unfilled">ввести</span>}
+                <span className={`expand-arrow ${isExpanded ? 'rotated' : ''}`}>▼</span>
+              </div>
+            </div>
+
+            {isExpanded && (
+              <div className="chip-accordion-body">
+                <div className="chip-grid">
+                  {selectedPreset.chips
+                    .map((chip, i) => ({ chip, origIndex: i }))
+                    .sort((a, b) => a.chip.nominal - b.chip.nominal)
+                    .map(({ chip, origIndex }) => (
+                      <ChipRow
+                        key={chip.color + chip.nominal}
+                        chip={chip}
+                        value={chipInputs[player.id]?.[origIndex] || 0}
+                        onChange={value => handleChipChange(player.id, origIndex, value)}
+                      />
+                    ))}
+                </div>
+                <button
+                  className="btn btn-primary btn-small chip-accordion-done"
+                  onClick={() => setExpandedPlayerId(null)}
+                >
+                  ✓ Готово
+                </button>
+              </div>
+            )}
+          </div>
+        );
+      })}
 
       <div className="fixed-actions">
-        <button className="btn btn-success" onClick={goResults}>
-          📊 Рассчитать
+        <button className="btn btn-success" onClick={goResults} disabled={!allFilled}>
+          📊 Рассчитать{!allFilled && ` (${filledCount}/${currentGame.players.length})`}
         </button>
       </div>
     </div>

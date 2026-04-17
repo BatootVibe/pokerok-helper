@@ -7,6 +7,7 @@ import { CompletedGame, GameResult } from '../types';
 import { HeaderBack } from '../components/HeaderBack';
 import { useVerifiedPlayers } from '../utils/hooks';
 import { calculateDebts } from '../utils/debt';
+import { formatDuration } from '../utils/date';
 
 export function ResultsPage() {
   const navigate = useNavigate();
@@ -82,7 +83,7 @@ export function ResultsPage() {
 
   return (
     <div className="page">
-      <HeaderBack title="Результат игры" />
+      <HeaderBack title={`Результат игры ⏱ ${formatDuration(new Date().getTime() - new Date(currentGame.date).getTime())}`} />
 
       <div className="card">
         <div className="result-tabs">

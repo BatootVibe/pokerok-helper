@@ -328,10 +328,10 @@ function _getLocalProfiles(): { name: string; userId: number }[] {
  * Получает список всех привязанных игроков (id + name).
  * API: из БД. Fallback: из localStorage.
  */
-export async function getAllPlayers(): Promise<{ name: string; id: number }[]> {
+export async function getAllPlayers(): Promise<{ name: string; id: number; gamesCount?: number }[]> {
   const local = _getLocalProfiles();
   try {
-    const apiPlayers = await apiGet<{ name: string; id: number }[]>('/api/players');
+    const apiPlayers = await apiGet<{ name: string; id: number; gamesCount?: number }[]>('/api/players');
     const apiIds = new Set(apiPlayers.map(p => p.id));
     const extra = local.filter(p => !apiIds.has(p.userId));
     return [...apiPlayers, ...extra.map(p => ({ name: p.name, id: p.userId }))];

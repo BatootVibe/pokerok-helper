@@ -1,20 +1,32 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGame } from '../context/GameContext';
 import { HeaderHome } from '../components/HeaderBack';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { PlayerAutocomplete, Player } from '../components/PlayerAutocomplete';
+import { formatDuration } from '../utils/date';
 
 const HOLD_DURATION = 600;
 
 export function GameTablePage() {
   const navigate = useNavigate();
-  const { currentGame, addPlayer, incrementRebuy, decrementRebuy, finishGame } = useGame();
+  const { currentGame, addPlayer, incrementRebuy, decrementRebuy, finishGame, undoLastAction, lastAction } = useGame();
   const [players, setPlayers] = useState<Player[]>([]);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [showCountConfirm, setShowCountConfirm] = useState(false);
   const [holdingId, setHoldingId] = useState<string | null>(null);
+  const [elapsed, setElapsed] = useState(0);
   const holdTimerRef = useRef<number | null>(null);
   const holdFiredRef = useRef(false);
+
+  useEffect(() => {
+    if (!currentGame) return;
+    const start = new Date(currentGame.date).getTime();
+    const tick = () => setElapsed(Date.now() - start);
+    tick();
+    const id = setInterval(tick, 10000);
+    return () => clearInterval(id);
+  }, [currentGame]);
 
   const startHold = useCallback((playerId: string) => {
     holdFiredRef.current = false;
@@ -72,7 +84,7 @@ export function GameTablePage() {
 
   return (
     <div className="page">
-      <HeaderHome title="Игровой стол" />
+      <HeaderHome title={`Игровой стол ⏱ ${formatDuration(elapsed)}`} />
 
       {/* Игроки */}
       <div className="card">
@@ -136,16 +148,20 @@ export function GameTablePage() {
           >
             Отмена
           </button>
+          {lastAction && (
+            <button className="btn btn-secondary" onClick={undoLastAction}>
+              ↩ Отмена
+            </button>
+          )}
           <button
             className="btn btn-success"
-            onClick={() => navigate('/chips-count')}
+            onClick={() => setShowCountConfirm(true)}
           >
             Подсчёт
           </button>
         </div>
       </div>
 
-      {/* Модальное окно подтверждения */}
       {showConfirm && (
         <ConfirmModal
           title="⚠️ Завершить игру?"
@@ -153,6 +169,15 @@ export function GameTablePage() {
           danger
           onConfirm={handleEmergencyFinish}
           onCancel={() => setShowConfirm(false)}
+        />
+      )}
+
+      {showCountConfirm && (
+        <ConfirmModal
+          title="📊 Перейти к подсчёту?"
+          description="После перехода нельзя будет добавить ребай или игрока."
+          onConfirm={() => navigate('/chips-count')}
+          onCancel={() => setShowCountConfirm(false)}
         />
       )}
     </div>

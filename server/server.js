@@ -40,11 +40,114 @@ try { db.exec('ALTER TABLE games ADD FOREIGN KEY (owner_user_id) REFERENCES user
 try { db.exec('ALTER TABLE presets ADD FOREIGN KEY (owner_user_id) REFERENCES users(id)'); } catch {}
 try { db.exec('ALTER TABLE scheduled_games ADD FOREIGN KEY (owner_user_id) REFERENCES users(id)'); } catch {}
 
+db.exec(`CREATE TABLE IF NOT EXISTS notifications_sent (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  scheduled_game_id TEXT NOT NULL,
+  type TEXT NOT NULL,
+  sent_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(scheduled_game_id, type)
+)`);
+
 // Зачистка старых временных пресетов (старше 24ч)
 try {
   const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   db.prepare("DELETE FROM presets WHERE is_temporary = 1 AND created_at IS NOT NULL AND created_at < ?").run(cutoff);
 } catch {}
+
+// === Telegram Bot API helpers ===
+
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+
+async function sendTelegramMessage(tgId, text) {
+  if (!BOT_TOKEN) return;
+  try {
+    const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: tgId, text, parse_mode: 'HTML' }),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      console.error('Telegram API error:', err);
+    }
+  } catch (e) {
+    console.error('Failed to send Telegram message:', e.message);
+  }
+}
+
+async function sendGameResultsToPlayers(gameId) {
+  if (!BOT_TOKEN) return;
+  const game = db.prepare('SELECT * FROM games WHERE id = ?').get(gameId);
+  if (!game) return;
+  const results = db.prepare('SELECT * FROM game_results WHERE game_id = ?').all(gameId);
+
+  let text = `🎰 <b>Игра завершена!</b>\n`;
+  text += `📍 ${game.venue || 'Не указано'}\n\n`;
+  text += `📊 <b>Результаты:</b>\n`;
+  for (const r of results) {
+    const diff = r.rubles - r.spent_rubles;
+    const sign = diff > 0 ? '+' : '';
+    text += `${r.player_name}: ${sign}${diff.toFixed(0)} ₽ (${r.became_chips} pts)\n`;
+  }
+
+  for (const r of results) {
+    if (r.user_id) {
+      const user = db.prepare('SELECT tg_id FROM users WHERE id = ?').get(r.user_id);
+      if (user?.tg_id) {
+        await sendTelegramMessage(user.tg_id, text);
+      }
+    }
+  }
+}
+
+// === Scheduled game reminders (24h, 1h) ===
+
+function checkScheduledReminders() {
+  if (!BOT_TOKEN) return;
+  const now = Date.now();
+  const scheduled = db.prepare('SELECT * FROM scheduled_games').all();
+
+  for (const sg of scheduled) {
+    let scheduledAt;
+    try {
+      const parts = sg.scheduled_at.split(/[-T:]/);
+      scheduledAt = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), parseInt(parts[3]), parseInt(parts[4]) || 0).getTime();
+    } catch {
+      continue;
+    }
+
+    const diff = scheduledAt - now;
+    const players = JSON.parse(sg.players || '[]');
+
+    const reminders = [
+      { type: '24h', window: [23.5 * 3600000, 24.5 * 3600000], label: 'через 24 часа' },
+      { type: '1h', window: [0.5 * 3600000, 1.5 * 3600000], label: 'через 1 час' },
+    ];
+
+    for (const r of reminders) {
+      if (diff >= r.window[0] && diff <= r.window[1]) {
+        const already = db.prepare('SELECT 1 FROM notifications_sent WHERE scheduled_game_id = ? AND type = ?').get(sg.id, r.type);
+        if (already) continue;
+
+        const playerNames = players.join(', ') || '—';
+        const msg = `⏰ <b>Напоминание!</b>\nИгра ${r.label}\n📍 ${sg.venue || 'Не указано'}\n👤 ${playerNames}`;
+
+        for (const name of players) {
+          const user = db.prepare('SELECT tg_id FROM users WHERE player_name = ?').get(name);
+          if (user?.tg_id) {
+            sendTelegramMessage(user.tg_id, msg);
+          }
+        }
+
+        db.prepare('INSERT OR IGNORE INTO notifications_sent (scheduled_game_id, type) VALUES (?, ?)').run(sg.id, r.type);
+      }
+    }
+  }
+}
+
+setInterval(checkScheduledReminders, 5 * 60 * 1000);
+setTimeout(checkScheduledReminders, 10000);
 
 const app = express();
 
@@ -331,6 +434,7 @@ app.post('/api/games', requireTelegramAuth, strictLimiter, (req, res) => {
     });
     tx();
     res.json({ success: true });
+    sendGameResultsToPlayers(id).catch(e => console.error('Failed to send results:', e.message));
   } catch (dbErr) {
     console.error('Failed to save game:', dbErr.message);
     res.status(500).json({ error: 'Ошибка сохранения игры' });
@@ -511,8 +615,15 @@ app.put('/api/users', requireTelegramAuth, strictLimiter, (req, res) => {
 
 app.get('/api/players', (req, res) => {
   try {
-    const players = db.prepare('SELECT id, player_name as name, tg_username FROM users WHERE player_name IS NOT NULL').all();
-    res.json(players);
+    const players = db.prepare(`
+      SELECT u.id, u.player_name as name, u.tg_username, COUNT(gr.id) as gamesCount
+      FROM users u
+      LEFT JOIN game_results gr ON gr.user_id = u.id
+      WHERE u.player_name IS NOT NULL
+      GROUP BY u.id
+      ORDER BY gamesCount DESC, u.player_name
+    `).all();
+    res.json(players.map(p => ({ id: p.id, name: p.name, tg_username: p.tg_username, gamesCount: p.gamesCount })));
   } catch {
     res.json([]);
   }

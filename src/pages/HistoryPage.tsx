@@ -5,7 +5,7 @@ import { CompletedGame } from '../types';
 import { HeaderBack } from '../components/HeaderBack';
 import { showToast } from '../components/Toast';
 import { ConfirmModal } from '../components/ConfirmModal';
-import { formatDate, formatTime } from '../utils/date';
+import { formatDate, formatTime, formatDuration } from '../utils/date';
 import { useVerifiedPlayers } from '../utils/hooks';
 import { calculateDebts } from '../utils/debt';
 
@@ -122,6 +122,9 @@ function GameEntry({ game, isExpanded, onToggle, onDelete, isVerified, isBound, 
           <div className="history-date">{formatDate(game.date)}</div>
           <div className="history-time text-muted">
             {formatTime(game.date)} → {formatTime(game.finishedAt)}
+            {game.finishedAt && game.date && (
+              <> • ⏱ {formatDuration(new Date(game.finishedAt).getTime() - new Date(game.date).getTime())}</>
+            )}
             {game.venue && ` • 📍 ${game.venue}`}
           </div>
         </div>

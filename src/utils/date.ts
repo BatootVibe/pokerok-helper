@@ -41,3 +41,12 @@ export function isPast(iso: string, marginMs: number = 0): boolean {
   }
   return targetTime < Date.now() - marginMs;
 }
+
+export function formatDuration(ms: number): string {
+  if (ms < 0) ms = 0;
+  const totalMin = Math.floor(ms / 60000);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h > 0) return `${h}ч ${m}м`;
+  return `${m}м`;
+}

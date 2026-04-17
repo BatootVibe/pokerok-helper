@@ -44,6 +44,8 @@ interface GameContextType {
   setSelectedPresetId: (id: string | null) => void;
   updateGame: (game: Game) => void;
   chipPresetIsTemporary: boolean;
+  lastAction: { type: string; playerId: string } | null;
+  undoLastAction: () => void;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -52,6 +54,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [currentGame, setCurrentGame] = useState<Game | null>(null);
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
   const [chipPresetIsTemporary, setChipPresetIsTemporary] = useState(false);
+  const [lastAction, setLastAction] = useState<{ type: string; playerId: string } | null>(null);
   const [initialized, setInitialized] = useState(false);
   const saveTimerRef = useRef<number | null>(null);
 
@@ -134,6 +137,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         ),
       };
     });
+    setLastAction({ type: 'rebuy', playerId });
   }, []);
 
   const decrementRebuy = useCallback((playerId: string) => {
@@ -146,7 +150,24 @@ export function GameProvider({ children }: { children: ReactNode }) {
         ),
       };
     });
+    setLastAction(null);
   }, []);
+
+  const undoLastAction = useCallback(() => {
+    if (!lastAction) return;
+    if (lastAction.type === 'rebuy') {
+      setCurrentGame(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          players: prev.players.map(p =>
+            p.id === lastAction.playerId ? { ...p, rebuyQty: Math.max(0, p.rebuyQty - 1) } : p
+          ),
+        };
+      });
+    }
+    setLastAction(null);
+  }, [lastAction]);
 
   const removePlayer = useCallback((playerId: string) => {
     setCurrentGame(prev => {
@@ -180,6 +201,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setCurrentGame(null);
     setSelectedPresetId(null);
     setChipPresetIsTemporary(false);
+    setLastAction(null);
   }, [currentGame]);
 
   // Убран useEffect удаления — логика перенесена в finishGame
@@ -206,6 +228,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
         setSelectedPresetId,
         updateGame,
         chipPresetIsTemporary,
+        lastAction,
+        undoLastAction,
       }}
     >
       {children}

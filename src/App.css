@@ -567,6 +567,83 @@ body::before {
   border-radius: 10px;
 }
 
+/* === Chip Accordion === */
+
+.chip-progress-bar {
+  margin-bottom: 12px;
+}
+
+.chip-progress-text {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.chip-progress-track {
+  height: 4px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.chip-progress-fill {
+  height: 100%;
+  background: var(--accent-gold);
+  border-radius: 2px;
+  transition: width 0.3s;
+}
+
+.chip-accordion {
+  cursor: pointer;
+  padding: 0;
+  overflow: hidden;
+}
+
+.chip-accordion-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+}
+
+.chip-accordion-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.chip-accordion-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.chip-accordion-unfilled {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.chip-accordion-filled .chip-accordion-header {
+  border-bottom: none;
+}
+
+.chip-accordion-filled:not(.chip-accordion-expanded) {
+  border-left: 3px solid var(--accent-green);
+}
+
+.chip-accordion-body {
+  padding: 0 14px 12px;
+  border-top: 1px solid var(--border-color);
+}
+
+.chip-accordion-done {
+  width: 100%;
+  margin-top: 8px;
+}
+
 /* === Presets Page === */
 
 .preset-list {

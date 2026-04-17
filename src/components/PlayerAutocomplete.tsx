@@ -5,6 +5,7 @@ import { getAllPlayers } from '../utils/storage';
 export interface Player {
   name: string;
   userId?: number;
+  gamesCount?: number;
 }
 
 interface PlayerAutocompleteProps {
@@ -26,7 +27,11 @@ export function PlayerAutocomplete({ players, onAddPlayer, onRemovePlayer, maxPl
 
   // Загружаем всех привязанных пользователей при монтировании
   useEffect(() => {
-    getAllPlayers().then(list => setAllPlayers(list.map(p => ({ name: p.name, userId: p.id }))));
+    getAllPlayers().then(list => {
+      const sorted = list.map(p => ({ name: p.name, userId: p.id, gamesCount: p.gamesCount }))
+        .sort((a, b) => (b.gamesCount || 0) - (a.gamesCount || 0));
+      setAllPlayers(sorted);
+    });
   }, []);
 
   // Закрытие при клике снаружи (mousedown)
@@ -209,6 +214,7 @@ export function PlayerAutocomplete({ players, onAddPlayer, onRemovePlayer, maxPl
                 onClick={() => handleSelect(s)}
               >
                 <span className={isLinked ? 'verified-player' : ''}>{s.name}</span>
+                {s.gamesCount ? <span className="text-muted text-sm" style={{ marginLeft: 4 }}>{s.gamesCount}🎮</span> : null}
               </li>
             );
           })}
