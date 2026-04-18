@@ -153,6 +153,31 @@ export function GameProvider({ children }: { children: ReactNode }) {
     };
   }, [currentGame, initialized]);
 
+  // Poll for active game when none exists (so players see new games on home page)
+  useEffect(() => {
+    if (!initialized || currentGame) return;
+
+    const poll = async () => {
+      try {
+        const result = await apiGetMyActiveGame();
+        if (result) {
+          setCurrentGame(result.game);
+          setSelectedPresetId(result.game.chipPresetId);
+          setIsOwner(result.isOwner);
+          setRemoteChipInputs(result.chipInputs || {});
+          remoteChipInputsRef.current = result.chipInputs || {};
+          saveCurrentGameId(result.game.id);
+          const games = loadGames();
+          games[result.game.id] = result.game;
+          saveGames(games);
+        }
+      } catch {}
+    };
+
+    const id = setInterval(poll, 3000);
+    return () => clearInterval(id);
+  }, [initialized, currentGame]);
+
   // Debounced save to server (owner only) — sends game data WITHOUT chipInputs
   // Server will preserve existing chipInputs when chipInputs is empty
   useEffect(() => {
