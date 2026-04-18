@@ -313,7 +313,7 @@ function ScheduleForm({
 // === Venue Selector ===
 
 function VenueSelector({
-  venues, venue, setVenue, newVenue, setNewVenue,
+  venues, venue, setVenue, newVenue, setNewVenue, showVenueInput, setShowVenueInput,
 }: {
   venues: string[];
   venue: string; setVenue: (v: string) => void;
