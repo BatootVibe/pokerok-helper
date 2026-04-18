@@ -788,6 +788,7 @@ app.get('/api/active-games/mine', requireTelegramAuth, (req, res) => {
 
     const allActive = db.prepare('SELECT * FROM active_games').all();
     const userId = req.userId;
+    const playerName = req.playerName;
 
     for (const row of allActive) {
       let game;
@@ -795,7 +796,11 @@ app.get('/api/active-games/mine', requireTelegramAuth, (req, res) => {
 
       const players = Array.isArray(game.players) ? game.players : [];
       const isOwner = row.owner_user_id === userId;
-      const isParticipant = players.some(p => p.userId === userId);
+      const isParticipant = players.some(p =>
+        p.userId === userId ||
+        (p.userId != null && String(p.userId) === String(userId)) ||
+        (playerName && p.name === playerName)
+      );
 
       if (isOwner || isParticipant) {
         let chipInputs;
@@ -833,7 +838,7 @@ app.patch('/api/active-games/:id/chips', requireTelegramAuth, strictLimiter, (re
     const players = Array.isArray(game.players) ? game.players : [];
     const isOwner = row.owner_user_id === req.userId;
     const participant = players.find(p => p.id === playerId);
-    if (!isOwner && (!participant || participant.userId !== req.userId)) {
+    if (!isOwner && (!participant || (participant.userId !== req.userId && participant.name !== req.playerName))) {
       return res.status(403).json({ error: 'Можно обновлять только свои фишки' });
     }
 

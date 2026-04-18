@@ -174,6 +174,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       } catch {}
     };
 
+    poll();
     const id = setInterval(poll, 3000);
     return () => clearInterval(id);
   }, [initialized, currentGame]);

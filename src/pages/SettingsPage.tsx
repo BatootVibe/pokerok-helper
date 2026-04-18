@@ -125,7 +125,7 @@ export function SettingsPage() {
                 Сохранить
               </button>
               <button className="btn btn-secondary btn-small" style={{ flex: 1 }} onClick={() => setShowBindModal(false)}>
-                Играть как гость
+                Отмена
               </button>
             </div>
           </div>
