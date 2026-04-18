@@ -16,7 +16,7 @@ export default function ChipCountPage() {
   const [chipInputs, setChipInputs] = useState<Record<string, Record<number, number>>>({});
   const [expandedPlayerId, setExpandedPlayerId] = useState<string | null>(null);
   const apiChipsTimerRef = useRef<number | null>(null);
-  const editingRef = useRef<string | null>(null);
+  const dirtyPlayersRef = useRef<Set<string>>(new Set());
 
   const { setNavigate } = useActiveGamePolling(3000);
   useEffect(() => { setNavigate(navigate); }, [navigate, setNavigate]);
@@ -46,7 +46,7 @@ export default function ChipCountPage() {
           setChipInputs(prev => {
             const merged = { ...prev };
             for (const [pid, chips] of Object.entries(result.chipInputs)) {
-              if (pid !== editingRef.current) {
+              if (!dirtyPlayersRef.current.has(pid)) {
                 merged[pid] = chips;
               }
             }
@@ -83,6 +83,7 @@ export default function ChipCountPage() {
 
   const handleChipChange = useCallback((playerId: string, chipIndex: number, value: string) => {
     const num = Math.max(0, parseInt(value) || 0);
+    dirtyPlayersRef.current.add(playerId);
     setChipInputs(prev => {
       const updated = {
         ...prev,
@@ -94,7 +95,9 @@ export default function ChipCountPage() {
 
       if (apiChipsTimerRef.current) clearTimeout(apiChipsTimerRef.current);
       apiChipsTimerRef.current = window.setTimeout(() => {
-        apiUpdateActiveGameChips(currentGame.id, playerId, updated[playerId]).catch(() => {});
+        apiUpdateActiveGameChips(currentGame.id, playerId, updated[playerId])
+          .then(() => dirtyPlayersRef.current.delete(playerId))
+          .catch(() => {});
         apiChipsTimerRef.current = null;
       }, 500);
 
@@ -172,10 +175,8 @@ export default function ChipCountPage() {
   const openAccordion = (playerId: string) => {
     if (expandedPlayerId === playerId) {
       setExpandedPlayerId(null);
-      editingRef.current = null;
     } else {
       setExpandedPlayerId(playerId);
-      editingRef.current = playerId;
       if (!(playerId in chipInputs)) {
         setChipInputs(prev => ({ ...prev, [playerId]: {} }));
       }
@@ -231,7 +232,7 @@ export default function ChipCountPage() {
                 {editable && (
                   <button
                     className="btn btn-primary btn-small chip-accordion-done"
-                    onClick={() => { setExpandedPlayerId(null); editingRef.current = null; }}
+                    onClick={() => setExpandedPlayerId(null)}
                   >
                     ✓ Готово
                   </button>
