@@ -40,6 +40,7 @@ interface AdminUser {
 
 export function AdminPage() {
   const [authorized, setAuthorized] = useState<boolean | null>(null);
+  const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [games, setGames] = useState<CompletedGame[]>([]);
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -53,6 +54,7 @@ export function AdminPage() {
   const [importing, setImporting] = useState(false);
 
   const refresh = useCallback(async () => {
+    setLoading(true);
     try {
       const [s, g, u, p, v, sc] = await Promise.all([
         adminGetStats().catch(() => null),
@@ -70,6 +72,8 @@ export function AdminPage() {
       setScheduled(sc);
     } catch (err) {
       console.error('Admin refresh failed:', err);
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -80,8 +84,9 @@ export function AdminPage() {
         refresh();
       } else {
         setAuthorized(false);
+        setLoading(false);
       }
-    }).catch(() => setAuthorized(false));
+    }).catch(() => { setAuthorized(false); setLoading(false); });
   }, [refresh]);
 
   if (authorized === false) {
@@ -95,7 +100,7 @@ export function AdminPage() {
     );
   }
 
-  if (authorized === null) {
+  if (loading) {
     return (
       <div className="page" style={{ justifyContent: 'center', alignItems: 'center' }}>
         <p style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>Загрузка...</p>
