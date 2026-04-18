@@ -5,17 +5,18 @@ import { loadPresets } from '../utils/storage';
 import { ChipPreset, CHIP_COLOR_MAP, GameResult } from '../types';
 import { HeaderBack } from '../components/HeaderBack';
 import { CHIP_INPUTS_KEY } from '../utils/constants';
-import { apiUpdateActiveGameChips } from '../utils/api';
+import { apiUpdateActiveGameChips, apiGetMyActiveGame } from '../utils/api';
 import { useActiveGamePolling } from '../utils/hooks';
 
 export default function ChipCountPage() {
   const navigate = useNavigate();
-  const { currentGame, selectedPresetId, isOwner, remoteChipInputs, myPlayerId } = useGame();
+  const { currentGame, selectedPresetId, isOwner, myPlayerId } = useGame();
 
   const [presets, setPresets] = useState<ChipPreset[]>([]);
   const [chipInputs, setChipInputs] = useState<Record<string, Record<number, number>>>({});
   const [expandedPlayerId, setExpandedPlayerId] = useState<string | null>(null);
   const apiChipsTimerRef = useRef<number | null>(null);
+  const editingRef = useRef<string | null>(null);
 
   const { setNavigate } = useActiveGamePolling(3000);
   useEffect(() => { setNavigate(navigate); }, [navigate, setNavigate]);
@@ -36,19 +37,29 @@ export default function ChipCountPage() {
   }, [currentGame]);
 
   useEffect(() => {
-    if (Object.keys(remoteChipInputs).length > 0) {
-      setChipInputs(prev => {
-        const merged = { ...prev };
-        for (const [pid, chips] of Object.entries(remoteChipInputs)) {
-          const isEditing = expandedPlayerId === pid;
-          if (!isEditing) {
-            merged[pid] = chips;
-          }
+    if (!currentGame) return;
+
+    const poll = async () => {
+      try {
+        const result = await apiGetMyActiveGame();
+        if (result?.chipInputs && Object.keys(result.chipInputs).length > 0) {
+          setChipInputs(prev => {
+            const merged = { ...prev };
+            for (const [pid, chips] of Object.entries(result.chipInputs)) {
+              if (pid !== editingRef.current) {
+                merged[pid] = chips;
+              }
+            }
+            return merged;
+          });
         }
-        return merged;
-      });
-    }
-  }, [remoteChipInputs]);
+      } catch {}
+    };
+
+    poll();
+    const id = setInterval(poll, 3000);
+    return () => clearInterval(id);
+  }, [currentGame]);
 
   useEffect(() => {
     if (!currentGame || Object.keys(chipInputs).length === 0) return;
@@ -161,8 +172,10 @@ export default function ChipCountPage() {
   const openAccordion = (playerId: string) => {
     if (expandedPlayerId === playerId) {
       setExpandedPlayerId(null);
+      editingRef.current = null;
     } else {
       setExpandedPlayerId(playerId);
+      editingRef.current = playerId;
       if (!(playerId in chipInputs)) {
         setChipInputs(prev => ({ ...prev, [playerId]: {} }));
       }
@@ -218,7 +231,7 @@ export default function ChipCountPage() {
                 {editable && (
                   <button
                     className="btn btn-primary btn-small chip-accordion-done"
-                    onClick={() => setExpandedPlayerId(null)}
+                    onClick={() => { setExpandedPlayerId(null); editingRef.current = null; }}
                   >
                     ✓ Готово
                   </button>
