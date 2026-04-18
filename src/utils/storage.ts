@@ -1,5 +1,5 @@
 import { ChipPreset, CompletedGame, ScheduledGame } from '../types';
-import { apiGetGames, apiSaveGame, apiClearAllGames, apiGetPresets, apiSavePreset, apiDeletePreset, apiDeleteGame, apiGetScheduled, apiSaveScheduled, apiDeleteScheduled, apiHealthCheck, apiGet, apiPost, apiPut, apiRequest, apiGetVenues, apiSaveVenue, apiDeleteVenue, apiAdminStats, apiAdminClearAllGames, apiAdminDeleteGame, apiAdminDeleteUser, apiAdminDeletePreset, apiAdminDeleteVenue, apiAdminDeleteScheduled, apiAdminRenameUser, apiAdminExportData, apiAdminImportData } from './api';
+import { apiGetGames, apiSaveGame, apiClearAllGames, apiGetPresets, apiSavePreset, apiDeletePreset, apiDeleteGame, apiGetScheduled, apiSaveScheduled, apiDeleteScheduled, apiHealthCheck, apiGet, apiPost, apiPut, apiRequest, apiGetVenues, apiSaveVenue, apiDeleteVenue, apiAdminStats, apiAdminClearAllGames, apiAdminResetAll, apiAdminDeleteGame, apiAdminDeleteUser, apiAdminDeletePreset, apiAdminDeleteVenue, apiAdminDeleteScheduled, apiAdminRenameUser, apiAdminExportData, apiAdminImportData } from './api';
 import {
   LOCAL_HISTORY_KEY,
   LOCAL_PRESETS_KEY,
@@ -8,6 +8,8 @@ import {
   LOCAL_USER_PROFILE_KEY,
   NEARBY_GAME_MARGIN,
   API_AUTO_RESET_INTERVAL,
+  GAMES_KEY,
+  CURRENT_GAME_ID_KEY,
 } from './constants';
 
 /**
@@ -368,6 +370,18 @@ export async function adminGetStats() {
 export async function adminClearAllGames() {
   await apiAdminClearAllGames();
   localStorage.removeItem(LOCAL_HISTORY_KEY);
+}
+
+export async function adminResetAll() {
+  await apiAdminResetAll();
+  localStorage.removeItem(LOCAL_HISTORY_KEY);
+  localStorage.removeItem(LOCAL_PRESETS_KEY);
+  localStorage.removeItem(LOCAL_VENUES_KEY);
+  localStorage.removeItem(LOCAL_SCHEDULED_KEY);
+  localStorage.removeItem(LOCAL_USER_PROFILE_KEY + 'current');
+  localStorage.removeItem('poker_guest_mode');
+  localStorage.removeItem(GAMES_KEY);
+  localStorage.removeItem(CURRENT_GAME_ID_KEY);
 }
 
 export async function adminDeleteGame(id: string) {

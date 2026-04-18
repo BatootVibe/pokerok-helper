@@ -897,6 +897,26 @@ app.get('/api/admin/stats', requireTelegramAuth, requireAdmin, (req, res) => {
   }
 });
 
+app.delete('/api/admin/reset-all', requireTelegramAuth, requireAdmin, strictLimiter, (req, res) => {
+  try {
+    const tx = db.transaction(() => {
+      db.prepare('DELETE FROM game_results').run();
+      db.prepare('DELETE FROM games').run();
+      db.prepare('DELETE FROM active_games').run();
+      db.prepare('DELETE FROM scheduled_games').run();
+      db.prepare('DELETE FROM notifications_sent').run();
+      db.prepare('DELETE FROM presets').run();
+      db.prepare('DELETE FROM venues').run();
+      db.prepare('DELETE FROM users').run();
+    });
+    tx();
+    res.json({ success: true });
+  } catch (dbErr) {
+    console.error('Failed to reset all data:', dbErr.message);
+    res.status(500).json({ error: 'Ошибка сброса приложения' });
+  }
+});
+
 app.delete('/api/admin/games', requireTelegramAuth, requireAdmin, strictLimiter, (req, res) => {
   try {
     const tx = db.transaction(() => {

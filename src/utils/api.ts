@@ -162,6 +162,10 @@ export function apiAdminClearAllGames(): Promise<{ success: boolean }> {
   return request('/api/admin/games', { method: 'DELETE' });
 }
 
+export function apiAdminResetAll(): Promise<{ success: boolean }> {
+  return request('/api/admin/reset-all', { method: 'DELETE' });
+}
+
 export function apiAdminDeleteGame(id: string): Promise<{ success: boolean }> {
   return request(`/api/admin/games/${id}`, { method: 'DELETE' });
 }

@@ -5,6 +5,7 @@ import { formatDate, formatTime } from '../utils/date';
 import {
   adminGetStats,
   adminClearAllGames,
+  adminResetAll,
   adminDeleteGame,
   adminDeleteUser,
   adminDeletePreset,
@@ -109,6 +110,18 @@ export function AdminPage() {
       description: `Будет удалено ${stats?.games || 0} игр безвозвратно.`,
       onConfirm: async () => {
         await adminClearAllGames();
+        setConfirmAction(null);
+        refresh();
+      },
+    });
+  };
+
+  const handleResetAll = () => {
+    setConfirmAction({
+      title: '⚠️ Сбросить приложение?',
+      description: 'Будут удалены ВСЕ данные: игры, пользователи, пресеты, локации, расписание. Это действие необратимо.',
+      onConfirm: async () => {
+        await adminResetAll();
         setConfirmAction(null);
         refresh();
       },
@@ -282,8 +295,8 @@ export function AdminPage() {
               📤 Импорт
             </button>
           </div>
-          <button className="btn btn-danger mt-8" style={{ width: '100%' }} onClick={handleClearAll}>
-            🗑️ Очистить ВСЮ историю
+          <button className="btn btn-danger mt-8" style={{ width: '100%' }} onClick={handleResetAll}>
+            ⚠️ Сбросить приложение
           </button>
         </div>
       )}
