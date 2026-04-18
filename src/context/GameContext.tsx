@@ -59,6 +59,7 @@ interface GameContextType {
   updateGame: (game: Game | null) => void;
   updateRemoteChipInputs: (chipInputs: Record<string, Record<number, number>>) => void;
   syncFromServer: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
   chipPresetIsTemporary: boolean;
   myPlayerId: string | null;
 }
@@ -154,6 +155,15 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
     return () => { mounted = false; };
   }, []);
+
+  // Re-enrich players when profile changes (e.g. after binding)
+  useEffect(() => {
+    if (!currentGame || (!myUserId && !myPlayerName)) return;
+    const enriched = enrichPlayersWithUserId(currentGame, myUserId, myPlayerName);
+    if (enriched !== currentGame) {
+      setCurrentGame(enriched);
+    }
+  }, [myUserId, myPlayerName]);
 
   // Debounced save to localStorage
   useEffect(() => {
@@ -357,6 +367,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
     await syncFromServerRef.current();
   }, []);
 
+  const refreshProfile = useCallback(async () => {
+    try {
+      const profile = await apiGet<{ id: number; name: string } | null>('/api/users/me');
+      if (profile?.id) {
+        setMyUserId(profile.id);
+        setMyPlayerName(profile.name || null);
+      }
+    } catch {}
+  }, []);
+
   const finishGame = useCallback(() => {
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current);
@@ -417,6 +437,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         updateGame,
         updateRemoteChipInputs,
         syncFromServer,
+        refreshProfile,
         chipPresetIsTemporary,
         myPlayerId,
       }}

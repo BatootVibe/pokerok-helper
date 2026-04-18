@@ -15,7 +15,7 @@ interface HomeCard {
 
 export function HomePage() {
   const navigate = useNavigate();
-  const { currentGame, isOwner } = useGame();
+  const { currentGame, isOwner, refreshProfile } = useGame();
   const [showBindModal, setShowBindModal] = useState(false);
   const [bindName, setBindName] = useState('');
   const [bindError, setBindError] = useState('');
@@ -43,6 +43,7 @@ export function HomePage() {
       localStorage.removeItem(GUEST_MODE_KEY);
       setBindName('');
       setShowBindModal(false);
+      refreshProfile();
     } else {
       setBindError(result.error || 'Ошибка при привязке');
     }

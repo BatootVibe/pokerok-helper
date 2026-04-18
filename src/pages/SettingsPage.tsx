@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useGame } from '../context/GameContext';
 import { getUserProfile, saveUserProfile, updateUserProfile } from '../utils/storage';
 import { HeaderBack } from '../components/HeaderBack';
 
 export function SettingsPage() {
   const navigate = useNavigate();
+  const { refreshProfile } = useGame();
   const [showBindModal, setShowBindModal] = useState(false);
   const [showEditNameModal, setShowEditNameModal] = useState(false);
   const [bindName, setBindName] = useState('');
@@ -30,6 +32,7 @@ export function SettingsPage() {
       setUserProfile({ name: bindName.trim() });
       setBindName('');
       setShowBindModal(false);
+      refreshProfile();
     } else {
       setBindError(result.error || 'Ошибка при привязке');
     }
@@ -43,6 +46,7 @@ export function SettingsPage() {
       setUserProfile({ name: bindName.trim() });
       setBindName('');
       setShowEditNameModal(false);
+      refreshProfile();
     } else {
       setBindError(result.error || 'Ошибка при сохранении');
     }
