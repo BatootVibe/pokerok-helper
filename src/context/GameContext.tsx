@@ -5,6 +5,20 @@ import { generateId } from '../utils/id';
 import { apiSaveActiveGame, apiGetMyActiveGame, apiDeleteActiveGame } from '../utils/api';
 import { apiGet } from '../utils/api';
 
+function enrichPlayersWithUserId(game: Game, myUserId: number | null, myPlayerName: string | null): Game {
+  if (!myUserId && !myPlayerName) return game;
+  let changed = false;
+  const players = game.players.map(p => {
+    if (p.userId) return p;
+    if (myPlayerName && p.name === myPlayerName) {
+      changed = true;
+      return { ...p, userId: myUserId ?? undefined };
+    }
+    return p;
+  });
+  return changed ? { ...game, players } : game;
+}
+
 function loadGames(): Record<string, Game> {
   try {
     const data = localStorage.getItem(GAMES_KEY);
@@ -59,6 +73,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [chipPresetIsTemporary, setChipPresetIsTemporary] = useState(false);
   const [initialized, setInitialized] = useState(false);
   const [myUserId, setMyUserId] = useState<number | null>(null);
+  const [myPlayerName, setMyPlayerName] = useState<string | null>(null);
   const saveTimerRef = useRef<number | null>(null);
   const apiSaveTimerRef = useRef<number | null>(null);
   const currentGameRef = useRef<Game | null>(null);
@@ -82,11 +97,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
     let mounted = true;
 
     (async () => {
-      // Get my userId from server
+      let userId: number | null = null;
+      let playerName: string | null = null;
+
       try {
         const profile = await apiGet<{ id: number; name: string } | null>('/api/users/me');
         if (mounted && profile?.id) {
-          setMyUserId(profile.id);
+          userId = profile.id;
+          playerName = profile.name || null;
+          setMyUserId(userId);
+          setMyPlayerName(playerName);
         }
       } catch {}
 
@@ -94,14 +114,15 @@ export function GameProvider({ children }: { children: ReactNode }) {
       try {
         const result = await apiGetMyActiveGame();
         if (mounted && result) {
-          setCurrentGame(result.game);
-          setSelectedPresetId(result.game.chipPresetId);
+          const game = enrichPlayersWithUserId(result.game, userId, playerName);
+          setCurrentGame(game);
+          setSelectedPresetId(game.chipPresetId);
           setIsOwner(result.isOwner);
           setRemoteChipInputs(result.chipInputs || {});
           remoteChipInputsRef.current = result.chipInputs || {};
-          saveCurrentGameId(result.game.id);
+          saveCurrentGameId(game.id);
           const games = loadGames();
-          games[result.game.id] = result.game;
+          games[game.id] = game;
           saveGames(games);
           setInitialized(true);
           return;
@@ -161,14 +182,15 @@ export function GameProvider({ children }: { children: ReactNode }) {
       try {
         const result = await apiGetMyActiveGame();
         if (result) {
-          setCurrentGame(result.game);
-          setSelectedPresetId(result.game.chipPresetId);
+          const game = enrichPlayersWithUserId(result.game, myUserId, myPlayerName);
+          setCurrentGame(game);
+          setSelectedPresetId(game.chipPresetId);
           setIsOwner(result.isOwner);
           setRemoteChipInputs(result.chipInputs || {});
           remoteChipInputsRef.current = result.chipInputs || {};
-          saveCurrentGameId(result.game.id);
+          saveCurrentGameId(game.id);
           const games = loadGames();
-          games[result.game.id] = result.game;
+          games[game.id] = game;
           saveGames(games);
         }
       } catch {}
@@ -177,7 +199,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     poll();
     const id = setInterval(poll, 3000);
     return () => clearInterval(id);
-  }, [initialized, currentGame]);
+  }, [initialized, currentGame, myUserId, myPlayerName]);
 
   // Debounced save to server (owner only) — sends game data WITHOUT chipInputs
   // Server will preserve existing chipInputs when chipInputs is empty
@@ -314,21 +336,22 @@ export function GameProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        setCurrentGame(result.game);
-        setSelectedPresetId(result.game.chipPresetId);
+        const game = enrichPlayersWithUserId(result.game, myUserId, myPlayerName);
+        setCurrentGame(game);
+        setSelectedPresetId(game.chipPresetId);
         setIsOwner(result.isOwner);
         setRemoteChipInputs(result.chipInputs || {});
         remoteChipInputsRef.current = result.chipInputs || {};
 
         const games = loadGames();
-        games[result.game.id] = result.game;
+        games[game.id] = game;
         saveGames(games);
-        saveCurrentGameId(result.game.id);
+        saveCurrentGameId(game.id);
       } catch {
         // API unavailable — keep current state
       }
     };
-  }, []);
+  }, [myUserId, myPlayerName]);
 
   const syncFromServer = useCallback(async () => {
     await syncFromServerRef.current();
