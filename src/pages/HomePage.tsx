@@ -1,5 +1,7 @@
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGame } from '../context/GameContext';
+import { getUserProfile, saveUserProfile } from '../utils/storage';
 
 interface HomeCard {
   iconImg: string;
@@ -12,6 +14,32 @@ interface HomeCard {
 export function HomePage() {
   const navigate = useNavigate();
   const { currentGame, isOwner } = useGame();
+  const [showBindModal, setShowBindModal] = useState(false);
+  const [bindName, setBindName] = useState('');
+  const [bindError, setBindError] = useState('');
+  const [userProfile, setUserProfile] = useState<{ name: string; isAdmin?: boolean } | null>(null);
+
+  useEffect(() => {
+    getUserProfile().then(profile => {
+      setUserProfile(profile);
+      if (!profile || !profile.name) {
+        setShowBindModal(true);
+      }
+    });
+  }, []);
+
+  const handleBind = async () => {
+    if (!bindName.trim()) return;
+    setBindError('');
+    const result = await saveUserProfile({ name: bindName.trim() });
+    if (result.success) {
+      setUserProfile({ name: bindName.trim() });
+      setBindName('');
+      setShowBindModal(false);
+    } else {
+      setBindError(result.error || 'Ошибка при привязке');
+    }
+  };
 
   const continueSub = currentGame
     ? isOwner
@@ -56,6 +84,33 @@ export function HomePage() {
           </button>
         ))}
       </div>
+
+      {showBindModal && (
+        <div className="modal-overlay">
+          <div className="card card-modal">
+            <h3 className="modal-title">👤 Укажите имя</h3>
+            <p className="modal-desc">Это имя будут видеть другие игроки</p>
+            {bindError && <p className="error-text">{bindError}</p>}
+            <input
+              className="input"
+              type="text"
+              placeholder="Ваше имя (например, Саня)"
+              value={bindName}
+              onChange={e => { setBindName(e.target.value); setBindError(''); }}
+              onKeyDown={e => e.key === 'Enter' && handleBind()}
+              autoFocus
+            />
+            <div className="modal-actions mt-16">
+              <button className="btn btn-primary btn-small" style={{ flex: 1 }} onClick={handleBind} disabled={!bindName.trim()}>
+                Сохранить
+              </button>
+              <button className="btn btn-secondary btn-small" style={{ flex: 1 }} onClick={() => setShowBindModal(false)}>
+                Играть как гость
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

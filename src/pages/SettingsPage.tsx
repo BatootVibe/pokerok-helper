@@ -11,13 +11,9 @@ export function SettingsPage() {
   const [bindError, setBindError] = useState('');
   const [userProfile, setUserProfile] = useState<{ name: string; isAdmin?: boolean } | null>(null);
 
-  // Удаляем isBound, так как теперь вход автоматический
-
-  // Загружаем профиль при входе
   useEffect(() => {
     getUserProfile().then(profile => {
       setUserProfile(profile);
-      // Если у пользователя нет имени — сразу показываем окно ввода
       if (!profile || !profile.name) {
         setShowBindModal(true);
       }
@@ -126,12 +122,9 @@ export function SettingsPage() {
               <button className="btn btn-primary btn-small" style={{ flex: 1 }} onClick={handleBind} disabled={!bindName.trim()}>
                 Сохранить
               </button>
-              {/* Скрываем отмену при первом входе, чтобы заставить ввести имя */}
-              {userProfile?.name && (
-                <button className="btn btn-secondary btn-small" style={{ flex: 1 }} onClick={() => setShowBindModal(false)}>
-                  Отмена
-                </button>
-              )}
+              <button className="btn btn-secondary btn-small" style={{ flex: 1 }} onClick={() => setShowBindModal(false)}>
+                Играть как гость
+              </button>
             </div>
           </div>
         </div>
