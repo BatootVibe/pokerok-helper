@@ -4,7 +4,6 @@ import { ConfirmModal } from '../components/ConfirmModal';
 import { formatDate, formatTime } from '../utils/date';
 import {
   adminGetStats,
-  adminClearAllGames,
   adminResetAll,
   adminDeleteGame,
   adminDeleteUser,
@@ -103,18 +102,6 @@ export function AdminPage() {
       </div>
     );
   }
-
-  const handleClearAll = () => {
-    setConfirmAction({
-      title: '🗑️ Очистить ВСЮ историю?',
-      description: `Будет удалено ${stats?.games || 0} игр безвозвратно.`,
-      onConfirm: async () => {
-        await adminClearAllGames();
-        setConfirmAction(null);
-        refresh();
-      },
-    });
-  };
 
   const handleResetAll = () => {
     setConfirmAction({
