@@ -39,8 +39,12 @@ async function withFallback<T>(
 
   if (!apiAvailable) {
     if (localStorageKey) {
-      const data = localStorage.getItem(localStorageKey);
-      return data ? JSON.parse(data) : localDefault;
+      try {
+        const data = localStorage.getItem(localStorageKey);
+        return data ? JSON.parse(data) : localDefault;
+      } catch {
+        return localDefault;
+      }
     }
     return localDefault;
   }
@@ -52,8 +56,12 @@ async function withFallback<T>(
     apiAvailable = false;
     apiLastFailTime = Date.now();
     if (localStorageKey) {
-      const data = localStorage.getItem(localStorageKey);
-      return data ? JSON.parse(data) : localDefault;
+      try {
+        const data = localStorage.getItem(localStorageKey);
+        return data ? JSON.parse(data) : localDefault;
+      } catch {
+        return localDefault;
+      }
     }
     return localDefault;
   }

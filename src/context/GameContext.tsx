@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo, ReactNode } from 'react';
 import { Game, GamePlayer } from '../types';
 import { GAMES_KEY, CURRENT_GAME_ID_KEY, CHIP_INPUTS_KEY } from '../utils/constants';
 import { generateId } from '../utils/id';
@@ -433,11 +433,31 @@ export function GameProvider({ children }: { children: ReactNode }) {
     remoteChipInputsRef.current = {};
   }, []);
 
-  const myPlayerId = (() => {
+  const myPlayerId = useMemo(() => {
     if (!currentGame || !myUserId) return null;
     const me = currentGame.players.find(p => p.userId === myUserId);
     return me?.id ?? null;
-  })();
+  }, [currentGame, myUserId]);
+
+  const contextValue = useMemo(() => ({
+    currentGame,
+    isOwner,
+    remoteChipInputs,
+    createGame,
+    addPlayer,
+    incrementRebuy,
+    decrementRebuy,
+    removePlayer,
+    finishGame,
+    selectedPresetId,
+    setSelectedPresetId,
+    updateGame,
+    updateRemoteChipInputs,
+    syncFromServer,
+    refreshProfile,
+    chipPresetIsTemporary,
+    myPlayerId,
+  }), [currentGame, isOwner, remoteChipInputs, createGame, addPlayer, incrementRebuy, decrementRebuy, removePlayer, finishGame, selectedPresetId, setSelectedPresetId, updateGame, updateRemoteChipInputs, syncFromServer, refreshProfile, chipPresetIsTemporary, myPlayerId]);
 
   if (!initialized) {
     return (
@@ -448,27 +468,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <GameContext.Provider
-      value={{
-        currentGame,
-        isOwner,
-        remoteChipInputs,
-        createGame,
-        addPlayer,
-        incrementRebuy,
-        decrementRebuy,
-        removePlayer,
-        finishGame,
-        selectedPresetId,
-        setSelectedPresetId,
-        updateGame,
-        updateRemoteChipInputs,
-        syncFromServer,
-        refreshProfile,
-        chipPresetIsTemporary,
-        myPlayerId,
-      }}
-    >
+    <GameContext.Provider value={contextValue}>
       {children}
     </GameContext.Provider>
   );

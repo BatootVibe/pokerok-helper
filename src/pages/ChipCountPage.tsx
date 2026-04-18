@@ -5,10 +5,10 @@ import { loadPresets } from '../utils/storage';
 import { ChipPreset, CHIP_COLOR_MAP, GameResult } from '../types';
 import { HeaderBack } from '../components/HeaderBack';
 import { CHIP_INPUTS_KEY } from '../utils/constants';
-import { apiUpdateActiveGameChips, apiGetMyActiveGame } from '../utils/api';
+import { apiUpdateActiveGameChips } from '../utils/api';
 import { useActiveGamePolling } from '../utils/hooks';
 
-export function ChipCountPage() {
+export default function ChipCountPage() {
   const navigate = useNavigate();
   const { currentGame, selectedPresetId, isOwner, remoteChipInputs, myPlayerId } = useGame();
 
@@ -48,31 +48,6 @@ export function ChipCountPage() {
       });
     }
   }, [remoteChipInputs, myPlayerId]);
-
-  useEffect(() => {
-    if (!isOwner || !currentGame) return;
-
-    const poll = async () => {
-      try {
-        const result = await apiGetMyActiveGame();
-        if (result?.chipInputs && Object.keys(result.chipInputs).length > 0) {
-          setChipInputs(prev => {
-            const merged = { ...prev };
-            for (const [pid, chips] of Object.entries(result.chipInputs)) {
-              if (pid !== myPlayerId) {
-                merged[pid] = chips;
-              }
-            }
-            return merged;
-          });
-        }
-      } catch {}
-    };
-
-    poll();
-    const id = setInterval(poll, 3000);
-    return () => clearInterval(id);
-  }, [isOwner, currentGame, myPlayerId]);
 
   useEffect(() => {
     if (!currentGame || Object.keys(chipInputs).length === 0) return;

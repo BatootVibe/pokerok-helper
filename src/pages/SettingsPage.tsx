@@ -4,7 +4,7 @@ import { useGame } from '../context/GameContext';
 import { getUserProfile, saveUserProfile, updateUserProfile } from '../utils/storage';
 import { HeaderBack } from '../components/HeaderBack';
 
-export function SettingsPage() {
+export default function SettingsPage() {
   const navigate = useNavigate();
   const { refreshProfile } = useGame();
   const [showBindModal, setShowBindModal] = useState(false);

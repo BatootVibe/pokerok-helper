@@ -1,17 +1,17 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ScheduledGame } from '../types';
-import { loadScheduledGames, saveScheduledGame, deleteScheduledGame, loadVenues, getUserProfile, getAllPlayers } from '../utils/storage';
+import { loadScheduledGames, saveScheduledGame, deleteScheduledGame, loadVenues, getAllPlayers } from '../utils/storage';
 import { generateId } from '../utils/id';
 import { HeaderBack } from '../components/HeaderBack';
 import { showToast } from '../components/Toast';
 import { formatDate, formatTime, isPast } from '../utils/date';
-import { NEARBY_GAME_MARGIN } from '../utils/constants';
+import { NEARBY_GAME_MARGIN, HOLD_DURATION_SCHEDULED } from '../utils/constants';
 import { PlayerAutocomplete, Player } from '../components/PlayerAutocomplete';
-import { useVerifiedPlayers } from '../utils/hooks';
+import { useVerifiedPlayers, useBoundStatus } from '../utils/hooks';
 
 // === Main Page ===
 
-export function ScheduledGamesPage() {
+export default function ScheduledGamesPage() {
   const [scheduled, setScheduled] = useState<ScheduledGame[]>([]);
   const [venues, setVenues] = useState<string[]>([]);
   const [showForm, setShowForm] = useState(false);
@@ -21,22 +21,14 @@ export function ScheduledGamesPage() {
   // Form state
   const [venue, setVenue] = useState('');
   const [newVenue, setNewVenue] = useState('');
+  const [showVenueInput, setShowVenueInput] = useState(false);
   const [dateTime, setDateTime] = useState('');
   const [players, setPlayers] = useState<Player[]>([]);
 
   // Loading state
   const [loading, setLoading] = useState(true);
 
-  // Auth state
-  const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
-  const currentTgId = tgUser ? String(tgUser.id) : null;
-  const [isBound, setIsBound] = useState(false);
-
-  useEffect(() => {
-    if (currentTgId) {
-      getUserProfile().then(profile => setIsBound(!!profile));
-    }
-  }, [currentTgId]);
+  const { isBound } = useBoundStatus();
 
   const { verifiedNames } = useVerifiedPlayers();
 
@@ -65,6 +57,7 @@ export function ScheduledGamesPage() {
     setEditingGame(null);
     setVenue('');
     setNewVenue('');
+    setShowVenueInput(false);
     setDateTime('');
     setPlayers([]);
     setFormKey(k => k + 1);
@@ -75,6 +68,7 @@ export function ScheduledGamesPage() {
     setEditingGame(null);
     setVenue('');
     setNewVenue('');
+    setShowVenueInput(false);
     setDateTime('');
     setPlayers([]);
     setShowForm(false);
@@ -264,6 +258,8 @@ function ScheduleForm({
         setVenue={setVenue}
         newVenue={newVenue}
         setNewVenue={setNewVenue}
+        showVenueInput={showVenueInput}
+        setShowVenueInput={setShowVenueInput}
       />
 
       <div className="form-group">
@@ -318,10 +314,10 @@ function VenueSelector({
   venues: string[];
   venue: string; setVenue: (v: string) => void;
   newVenue: string; setNewVenue: (v: string) => void;
+  showVenueInput: boolean;
+  setShowVenueInput: (v: boolean) => void;
 }) {
-  const showInput = venues.length === 0 || newVenue === '_new_';
-
-  if (!showInput) {
+  if (!showVenueInput && venues.length > 0) {
     return (
       <div className="form-group">
         <label className="form-label">Локация</label>
@@ -336,7 +332,7 @@ function VenueSelector({
             </div>
           ))}
         </div>
-        <button className="btn btn-secondary btn-small" onClick={() => setNewVenue('_new_')}>
+        <button className="btn btn-secondary btn-small" onClick={() => setShowVenueInput(true)}>
           + Новое
         </button>
       </div>
@@ -359,6 +355,7 @@ function VenueSelector({
           onClick={() => {
             setNewVenue('');
             setVenue(venues[0] || '');
+            setShowVenueInput(false);
           }}
         >
           ← Выбрать
@@ -374,7 +371,7 @@ function ScheduledEntry({ game, onEdit, canEdit, verifiedNames }: { game: Schedu
   const holdTimerRef = useRef<number | null>(null);
   const [isHolding, setIsHolding] = useState(false);
 
-  const EDIT_HOLD_DURATION = 3000;
+  const EDIT_HOLD_DURATION = HOLD_DURATION_SCHEDULED;
 
   const safeVenue = game.venue || 'Без локации';
   const safePlayers = Array.isArray(game.players) ? game.players : [];

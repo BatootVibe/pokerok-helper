@@ -5,12 +5,11 @@ import { addCompletedGame, getUserProfile, deletePreset } from '../utils/storage
 import { showToast } from '../components/Toast';
 import { CompletedGame, GameResult } from '../types';
 import { HeaderBack } from '../components/HeaderBack';
-import { useVerifiedPlayers } from '../utils/hooks';
-import { useActiveGamePolling } from '../utils/hooks';
+import { useVerifiedPlayers, useActiveGamePolling } from '../utils/hooks';
 import { calculateDebts } from '../utils/debt';
 import { formatDuration } from '../utils/date';
 
-export function ResultsPage() {
+export default function ResultsPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { currentGame, finishGame, selectedPresetId, chipPresetIsTemporary, isOwner } = useGame();

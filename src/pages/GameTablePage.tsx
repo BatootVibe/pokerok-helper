@@ -6,10 +6,9 @@ import { ConfirmModal } from '../components/ConfirmModal';
 import { PlayerAutocomplete, Player } from '../components/PlayerAutocomplete';
 import { formatDuration } from '../utils/date';
 import { useActiveGamePolling } from '../utils/hooks';
+import { HOLD_DURATION_REBUY_REBUY } from '../utils/constants';
 
-const HOLD_DURATION = 600;
-
-export function GameTablePage() {
+export default function GameTablePage() {
   const navigate = useNavigate();
   const { currentGame, isOwner, addPlayer, incrementRebuy, decrementRebuy, finishGame } = useGame();
   const [players, setPlayers] = useState<Player[]>([]);
@@ -40,7 +39,7 @@ export function GameTablePage() {
       holdFiredRef.current = true;
       setHoldingId(null);
       if (decrementRebuy) decrementRebuy(playerId);
-    }, HOLD_DURATION);
+    }, HOLD_DURATION_REBUY);
   }, [decrementRebuy]);
 
   const endHold = useCallback((playerId: string) => {

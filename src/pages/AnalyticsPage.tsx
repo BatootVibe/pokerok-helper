@@ -1,8 +1,9 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { loadGameHistory, getUserProfile } from '../utils/storage';
+import { loadGameHistory } from '../utils/storage';
 import { CompletedGame } from '../types';
 import { HeaderBack } from '../components/HeaderBack';
+import { useBoundStatus } from '../utils/hooks';
 
 interface PlayerStat {
   name: string;
@@ -14,27 +15,17 @@ interface PlayerStat {
   worstGame: number;
 }
 
-export function AnalyticsPage() {
+export default function AnalyticsPage() {
   const navigate = useNavigate();
   const [history, setHistory] = useState<CompletedGame[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Auth check
-  const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
-  const currentTgId = tgUser ? String(tgUser.id) : null;
-  const [isBound, setIsBound] = useState(false);
+  const { isBound } = useBoundStatus();
   const [authChecked, setAuthChecked] = useState(false);
 
   useEffect(() => {
-    if (currentTgId) {
-      getUserProfile().then(profile => {
-        setIsBound(!!profile);
-        setAuthChecked(true);
-      });
-    } else {
-      setAuthChecked(true);
-    }
-  }, [currentTgId]);
+    setAuthChecked(true);
+  }, [isBound]);
 
   useEffect(() => {
     if (!authChecked) return;
@@ -54,8 +45,8 @@ export function AnalyticsPage() {
       0
     );
 
-    let bestSession = { name: '-', amount: 0 };
-    let worstSession = { name: '-', amount: 0 };
+    let bestSession: { name: string; amount: number } | null = null;
+    let worstSession: { name: string; amount: number } | null = null;
     const playerMap = new Map<string, PlayerStat>();
 
     history.forEach(game => {
@@ -69,8 +60,8 @@ export function AnalyticsPage() {
             wins: 0, 
             losses: 0, 
             profit: 0, 
-            bestGame: 0, 
-            worstGame: 0 
+            bestGame: profit, 
+            worstGame: profit 
           });
         }
         const ps = playerMap.get(p.playerName)!;
@@ -82,10 +73,10 @@ export function AnalyticsPage() {
         if (profit > ps.bestGame) ps.bestGame = profit;
         if (profit < ps.worstGame) ps.worstGame = profit;
 
-        if (profit > bestSession.amount) {
+        if (!bestSession || profit > bestSession.amount) {
           bestSession = { name: p.playerName, amount: profit };
         }
-        if (profit < worstSession.amount) {
+        if (!worstSession || profit < worstSession.amount) {
           worstSession = { name: p.playerName, amount: profit };
         }
       });
@@ -123,12 +114,12 @@ export function AnalyticsPage() {
                 <div className="stat-label">Объём</div>
               </div>
               <div className="stat-card">
-                <div className="stat-value result-positive">+{stats.bestSession.amount} ₽</div>
-                <div className="stat-label">Лучшая ({stats.bestSession.name})</div>
+                <div className="stat-value result-positive">{stats.bestSession ? `+${stats.bestSession.amount} ₽` : '—'}</div>
+                <div className="stat-label">Лучшая ({stats.bestSession?.name ?? '—'})</div>
               </div>
               <div className="stat-card">
-                <div className="stat-value result-negative">{stats.worstSession.amount} ₽</div>
-                <div className="stat-label">Худшая ({stats.worstSession.name})</div>
+                <div className="stat-value result-negative">{stats.worstSession ? `${stats.worstSession.amount} ₽` : '—'}</div>
+                <div className="stat-label">Худшая ({stats.worstSession?.name ?? '—'})</div>
               </div>
             </div>
           </div>

@@ -9,8 +9,13 @@ export const CHIP_INPUTS_KEY = 'poker_chip_inputs_';
 export const LOCAL_USER_PROFILE_KEY = 'poker_user_profile_'; // suffix + tgId
 
 // Time constants (ms)
-export const NEARBY_GAME_MARGIN = 30 * 60 * 1000; // ±30 minutes
-export const API_AUTO_RESET_INTERVAL = 60_000; // auto-reset apiAvailable every 60s
+export const NEARBY_GAME_MARGIN = 30 * 60 * 1000;
+export const API_AUTO_RESET_INTERVAL = 60_000;
+
+// Hold durations (ms)
+export const HOLD_DURATION_REBUY = 600;
+export const HOLD_DURATION_EDIT = 2000;
+export const HOLD_DURATION_SCHEDULED = 3000;
 
 // Game defaults
 export const DEFAULT_STARTING_CHIPS = 500;

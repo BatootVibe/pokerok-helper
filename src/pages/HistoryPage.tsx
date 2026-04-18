@@ -1,30 +1,21 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { loadGameHistory, deleteCompletedGame, getUserProfile } from '../utils/storage';
+import { loadGameHistory, deleteCompletedGame } from '../utils/storage';
 import { CompletedGame } from '../types';
 import { HeaderBack } from '../components/HeaderBack';
 import { showToast } from '../components/Toast';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { formatDate, formatTime, formatDuration } from '../utils/date';
-import { useVerifiedPlayers } from '../utils/hooks';
+import { useVerifiedPlayers, useBoundStatus } from '../utils/hooks';
 import { calculateDebts } from '../utils/debt';
 
-export function HistoryPage() {
+export default function HistoryPage() {
   const navigate = useNavigate();
   const [history, setHistory] = useState<CompletedGame[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedGameId, setExpandedGameId] = useState<string | null>(null);
 
-  // Auth state
-  const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
-  const currentTgId = tgUser ? String(tgUser.id) : null;
-  const [isBound, setIsBound] = useState(false);
-
-  useEffect(() => {
-    if (currentTgId) {
-      getUserProfile().then(profile => setIsBound(!!profile));
-    }
-  }, [currentTgId]);
+  const { isBound } = useBoundStatus();
 
   const loadHistory = useCallback(() => {
     loadGameHistory()

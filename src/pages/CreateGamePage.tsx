@@ -7,7 +7,7 @@ import { ChipPreset } from '../types';
 import { PlayerAutocomplete, Player } from '../components/PlayerAutocomplete';
 import { useVerifiedPlayers } from '../utils/hooks';
 
-export function CreateGamePage() {
+export default function CreateGamePage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { createGame } = useGame();

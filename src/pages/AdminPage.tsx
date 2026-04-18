@@ -38,7 +38,7 @@ interface AdminUser {
   tgUsername: string | null;
 }
 
-export function AdminPage() {
+export default function AdminPage() {
   const [authorized, setAuthorized] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -66,7 +66,7 @@ export function AdminPage() {
       ]);
       setStats(s);
       setGames(g);
-      setUsers(u.map((p: any) => ({ id: p.id || p.userId, name: p.name, tgUsername: p.tg_username || null })));
+      setUsers(u.map((p: { id: number; userId?: number; name: string; tg_username?: string | null }) => ({ id: p.id || p.userId, name: p.name, tgUsername: p.tg_username || null })));
       setPresets(p);
       setVenues(v);
       setScheduled(sc);

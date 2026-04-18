@@ -1,17 +1,18 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ChipPreset, ChipEntry, ChipColor, CHIP_COLOR_MAP } from '../types';
-import { loadPresets, savePresets, deletePreset, getUserProfile } from '../utils/storage';
+import { loadPresets, savePresets, deletePreset } from '../utils/storage';
 import { showToast } from '../components/Toast';
 import { generateId } from '../utils/id';
-import { DEFAULT_CHIP_ENTRIES } from '../utils/constants';
+import { DEFAULT_CHIP_ENTRIES, HOLD_DURATION_EDIT } from '../utils/constants';
 import { HeaderBack } from '../components/HeaderBack';
+import { useBoundStatus } from '../utils/hooks';
 
 const ALL_COLORS: ChipColor[] = [
   'white', 'red', 'blue', 'green', 'black', 'purple', 'yellow', 'pink', 'gray',
 ];
 
-export function PresetsPage() {
+export default function PresetsPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const fromCreate = location.state?.fromCreate === true;
@@ -23,16 +24,7 @@ export function PresetsPage() {
   const [chipEntries, setChipEntries] = useState<ChipEntry[]>(DEFAULT_CHIP_ENTRIES);
   const [isDuplicateName, setIsDuplicateName] = useState(false);
 
-  // Auth state
-  const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
-  const currentTgId = tgUser ? String(tgUser.id) : null;
-  const [isBound, setIsBound] = useState(false);
-
-  useEffect(() => {
-    if (currentTgId) {
-      getUserProfile().then(profile => setIsBound(!!profile));
-    }
-  }, [currentTgId]);
+  const { isBound } = useBoundStatus();
 
   useEffect(() => {
     if (!newPresetName.trim()) {
@@ -235,7 +227,7 @@ function PresetListItem({ preset, onEdit, canEdit }: {
 }) {
   const holdTimerRef = useRef<number | null>(null);
   const [isHolding, setIsHolding] = useState(false);
-  const EDIT_HOLD_DURATION = 2000;
+  const EDIT_HOLD_DURATION = HOLD_DURATION_EDIT;
 
   const startHold = () => {
     if (!canEdit) return;

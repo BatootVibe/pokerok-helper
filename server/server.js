@@ -14,6 +14,7 @@ const db = new Database(path.join(__dirname, 'poker.db'));
 
 // Включаем WAL mode для лучшей конкурентности
 db.pragma('journal_mode = WAL');
+db.pragma('foreign_keys = ON');
 
 // === Настройка БД ===
 
@@ -60,12 +61,16 @@ db.exec(`CREATE TABLE IF NOT EXISTS active_games (
   FOREIGN KEY (owner_user_id) REFERENCES users(id)
 )`);
 
-// Зачистка старых активных игр (старше 24ч) и временных пресетов
-try {
-  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  db.prepare("DELETE FROM active_games WHERE updated_at < ?").run(cutoff);
-  db.prepare("DELETE FROM presets WHERE is_temporary = 1 AND created_at IS NOT NULL AND created_at < ?").run(cutoff);
-} catch {}
+function cleanupStaleData() {
+  try {
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    db.prepare("DELETE FROM active_games WHERE updated_at < ?").run(cutoff);
+    db.prepare("DELETE FROM presets WHERE is_temporary = 1 AND created_at IS NOT NULL AND created_at < ?").run(cutoff);
+  } catch {}
+}
+
+cleanupStaleData();
+setInterval(cleanupStaleData, 60 * 60 * 1000);
 
 // === Telegram Bot API helpers ===
 
@@ -1146,8 +1151,8 @@ app.post('/api/admin/import', requireTelegramAuth, requireAdmin, strictLimiter, 
         for (const s of scheduled) {
           if (s.id) {
             try {
-              db.prepare('INSERT OR REPLACE INTO scheduled_games (id, venue, scheduled_at, players, created_at, owner_user_id) VALUES (?, ?, ?, ?, ?, ?)')
-                .run(s.id, s.venue || '', s.scheduled_at, s.players, s.created_at || '', s.owner_user_id || null);
+              db.prepare('INSERT OR REPLACE INTO scheduled_games (id, venue, scheduled_at, scheduled_at_ts, scheduled_at_display, players, created_at, owner_user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+                .run(s.id, s.venue || '', s.scheduled_at, s.scheduled_at_ts || null, s.scheduled_at_display || null, s.players, s.created_at || '', s.owner_user_id || null);
             } catch {}
           }
         }

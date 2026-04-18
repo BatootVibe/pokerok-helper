@@ -2,6 +2,20 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { apiGet } from './api';
 import { LOCAL_USER_PROFILE_KEY } from './constants';
 import { useGame } from '../context/GameContext';
+import { getUserProfile } from './storage';
+
+export function useBoundStatus() {
+  const [isBound, setIsBound] = useState(false);
+
+  useEffect(() => {
+    getUserProfile().then(profile => {
+      const guest = localStorage.getItem('poker_guest_mode') === 'true';
+      setIsBound(!!(profile?.name) && !guest);
+    }).catch(() => setIsBound(false));
+  }, []);
+
+  return { isBound };
+}
 
 export function useVerifiedPlayers() {
   const [verifiedIds, setVerifiedIds] = useState<Set<number>>(new Set());
