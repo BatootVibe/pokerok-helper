@@ -55,12 +55,12 @@ export function AdminPage() {
   const refresh = useCallback(async () => {
     try {
       const [s, g, u, p, v, sc] = await Promise.all([
-        adminGetStats(),
-        loadGameHistory(),
-        getAllPlayers(),
-        loadPresets(),
-        loadVenues(),
-        loadScheduledGames(),
+        adminGetStats().catch(() => null),
+        loadGameHistory().catch(() => []),
+        getAllPlayers().catch(() => []),
+        loadPresets().catch(() => []),
+        loadVenues().catch(() => []),
+        loadScheduledGames().catch(() => []),
       ]);
       setStats(s);
       setGames(g);

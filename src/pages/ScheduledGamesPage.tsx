@@ -45,7 +45,7 @@ export function ScheduledGamesPage() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [games, v] = await Promise.all([loadScheduledGames(), loadVenues()]);
+      const [games, v] = await Promise.all([loadScheduledGames().catch(() => []), loadVenues().catch(() => [])]);
       setScheduled(games);
       setVenues(v);
     } catch (err) {
