@@ -139,7 +139,15 @@ function checkScheduledReminders() {
   const scheduled = db.prepare('SELECT * FROM scheduled_games').all();
 
   for (const sg of scheduled) {
-    const scheduledAtTs = sg.scheduled_at_ts;
+    let scheduledAtTs = sg.scheduled_at_ts;
+    if (!scheduledAtTs && sg.scheduled_at) {
+      try {
+        const parts = sg.scheduled_at.split(/[-T:]/);
+        scheduledAtTs = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), parseInt(parts[3]), parseInt(parts[4]) || 0).getTime();
+      } catch {
+        continue;
+      }
+    }
     if (!scheduledAtTs) continue;
 
     const diff = scheduledAtTs - now;
@@ -147,7 +155,7 @@ function checkScheduledReminders() {
 
     const reminders = [
       { type: '24h', window: [23.5 * 3600000, 24.5 * 3600000], label: 'через 24 часа' },
-      { type: '1h', window: [0.5 * 3600000, 1.5 * 3600000], label: 'через 1 час' },
+      { type: '30m', window: [0.25 * 3600000, 0.75 * 3600000], label: 'через 30 минут' },
     ];
 
     for (const r of reminders) {
