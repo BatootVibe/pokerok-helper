@@ -12,9 +12,10 @@ export function SettingsPage() {
   const [userProfile, setUserProfile] = useState<{ name: string; isAdmin?: boolean } | null>(null);
 
   useEffect(() => {
+    const isGuest = localStorage.getItem('poker_guest_mode') === 'true';
     getUserProfile().then(profile => {
       setUserProfile(profile);
-      if (!profile || !profile.name) {
+      if (!isGuest && (!profile || !profile.name)) {
         setShowBindModal(true);
       }
     });
