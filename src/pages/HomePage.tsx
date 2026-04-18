@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useGame } from '../context/GameContext';
 import { getUserProfile, saveUserProfile } from '../utils/storage';
 
+const GUEST_MODE_KEY = 'poker_guest_mode';
+
 interface HomeCard {
   iconImg: string;
   title: string;
@@ -19,6 +21,8 @@ export function HomePage() {
   const [bindError, setBindError] = useState('');
 
   useEffect(() => {
+    const isGuest = localStorage.getItem(GUEST_MODE_KEY) === 'true';
+    if (isGuest) return;
     getUserProfile().then(profile => {
       if (!profile || !profile.name) {
         setShowBindModal(true);
@@ -26,11 +30,17 @@ export function HomePage() {
     });
   }, []);
 
+  const handleGuest = () => {
+    localStorage.setItem(GUEST_MODE_KEY, 'true');
+    setShowBindModal(false);
+  };
+
   const handleBind = async () => {
     if (!bindName.trim()) return;
     setBindError('');
     const result = await saveUserProfile({ name: bindName.trim() });
     if (result.success) {
+      localStorage.removeItem(GUEST_MODE_KEY);
       setBindName('');
       setShowBindModal(false);
     } else {
@@ -101,7 +111,7 @@ export function HomePage() {
               <button className="btn btn-primary btn-small" style={{ flex: 1 }} onClick={handleBind} disabled={!bindName.trim()}>
                 Сохранить
               </button>
-              <button className="btn btn-secondary btn-small" style={{ flex: 1 }} onClick={() => setShowBindModal(false)}>
+              <button className="btn btn-secondary btn-small" style={{ flex: 1 }} onClick={handleGuest}>
                 Играть как гость
               </button>
             </div>

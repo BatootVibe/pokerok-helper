@@ -25,6 +25,7 @@ export function SettingsPage() {
     setBindError('');
     const result = await saveUserProfile({ name: bindName.trim() });
     if (result.success) {
+      localStorage.removeItem('poker_guest_mode');
       setUserProfile({ name: bindName.trim() });
       setBindName('');
       setShowBindModal(false);
