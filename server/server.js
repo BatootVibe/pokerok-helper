@@ -790,6 +790,13 @@ app.get('/api/active-games/mine', requireTelegramAuth, (req, res) => {
     const userId = req.userId;
     const playerName = req.playerName;
 
+    // Build name -> userId map from users table
+    const userRows = db.prepare('SELECT id, player_name FROM users WHERE player_name IS NOT NULL').all();
+    const nameToUserId = new Map();
+    for (const u of userRows) {
+      nameToUserId.set(u.player_name, u.id);
+    }
+
     for (const row of allActive) {
       let game;
       try { game = JSON.parse(row.data); } catch { continue; }
@@ -803,6 +810,19 @@ app.get('/api/active-games/mine', requireTelegramAuth, (req, res) => {
       );
 
       if (isOwner || isParticipant) {
+        // Enrich players with userId from users table
+        let playersChanged = false;
+        const enrichedPlayers = players.map(p => {
+          if (!p.userId && p.name && nameToUserId.has(p.name)) {
+            playersChanged = true;
+            return { ...p, userId: nameToUserId.get(p.name) };
+          }
+          return p;
+        });
+        if (playersChanged) {
+          game.players = enrichedPlayers;
+        }
+
         let chipInputs;
         try { chipInputs = JSON.parse(row.chip_inputs); } catch { chipInputs = {}; }
 
