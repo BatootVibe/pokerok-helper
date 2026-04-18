@@ -40,14 +40,15 @@ export default function ChipCountPage() {
       setChipInputs(prev => {
         const merged = { ...prev };
         for (const [pid, chips] of Object.entries(remoteChipInputs)) {
-          if (pid !== myPlayerId) {
+          const isEditing = expandedPlayerId === pid;
+          if (!isEditing) {
             merged[pid] = chips;
           }
         }
         return merged;
       });
     }
-  }, [remoteChipInputs, myPlayerId]);
+  }, [remoteChipInputs]);
 
   useEffect(() => {
     if (!currentGame || Object.keys(chipInputs).length === 0) return;
