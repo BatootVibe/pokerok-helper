@@ -6,7 +6,7 @@ import { ConfirmModal } from '../components/ConfirmModal';
 import { PlayerAutocomplete, Player } from '../components/PlayerAutocomplete';
 import { formatDuration } from '../utils/date';
 import { useActiveGamePolling } from '../utils/hooks';
-import { HOLD_DURATION_REBUY_REBUY } from '../utils/constants';
+import { HOLD_DURATION_REBUY } from '../utils/constants';
 
 export default function GameTablePage() {
   const navigate = useNavigate();

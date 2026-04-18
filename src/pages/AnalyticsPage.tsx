@@ -38,7 +38,7 @@ export default function AnalyticsPage() {
       .finally(() => setLoading(false));
   }, [authChecked, isBound, navigate]);
 
-  const stats = useMemo(() => {
+  const stats = useMemo((): { totalGames: number; totalMoney: number; bestSession: { name: string; amount: number } | null; worstSession: { name: string; amount: number } | null; topPlayers: PlayerStat[] } => {
     const totalGames = history.length;
     const totalMoney = history.reduce(
       (sum, g) => sum + g.players.reduce((s, p) => s + p.spentRubles, 0),

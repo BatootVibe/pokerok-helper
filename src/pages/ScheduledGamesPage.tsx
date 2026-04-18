@@ -178,6 +178,8 @@ export default function ScheduledGamesPage() {
           setVenue={setVenue}
           newVenue={newVenue}
           setNewVenue={setNewVenue}
+          showVenueInput={showVenueInput}
+          setShowVenueInput={setShowVenueInput}
           dateTime={dateTime}
           setDateTime={setDateTime}
           players={players}
@@ -220,6 +222,7 @@ export default function ScheduledGamesPage() {
 
 function ScheduleForm({
   venues, venue, setVenue, newVenue, setNewVenue,
+  showVenueInput, setShowVenueInput,
   dateTime, setDateTime,
   players, onAddPlayer, onRemovePlayer, editingGame,
   onSave, onDelete, onCancel, isBound,
@@ -227,6 +230,7 @@ function ScheduleForm({
   venues: string[];
   venue: string; setVenue: (v: string) => void;
   newVenue: string; setNewVenue: (v: string) => void;
+  showVenueInput: boolean; setShowVenueInput: (v: boolean) => void;
   dateTime: string; setDateTime: (v: string) => void;
   players: Player[];
   onAddPlayer: (player: Player) => void;
