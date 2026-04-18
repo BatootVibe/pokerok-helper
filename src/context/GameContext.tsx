@@ -211,6 +211,33 @@ export function GameProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(id);
   }, [initialized, currentGame, myUserId, myPlayerName]);
 
+  // Poll server for enriched game data when owner has active game
+  useEffect(() => {
+    if (!initialized || !currentGame || !isOwner) return;
+
+    const poll = async () => {
+      try {
+        const result = await apiGetMyActiveGame();
+        if (result) {
+          const game = enrichPlayersWithUserId(result.game, myUserId, myPlayerName);
+          setCurrentGame(prev => {
+            if (!prev) return game;
+            // Only update if players' userId changed (verified highlight)
+            const prevIds = prev.players.map(p => `${p.id}:${p.userId ?? ''}`).join(',');
+            const newIds = game.players.map(p => `${p.id}:${p.userId ?? ''}`).join(',');
+            if (prevIds === newIds) return prev;
+            return { ...prev, players: game.players };
+          });
+          setRemoteChipInputs(result.chipInputs || {});
+          remoteChipInputsRef.current = result.chipInputs || {};
+        }
+      } catch {}
+    };
+
+    const id = setInterval(poll, 3000);
+    return () => clearInterval(id);
+  }, [initialized, currentGame, isOwner, myUserId, myPlayerName]);
+
   // Debounced save to server (owner only) — sends game data WITHOUT chipInputs
   // Server will preserve existing chipInputs when chipInputs is empty
   useEffect(() => {
