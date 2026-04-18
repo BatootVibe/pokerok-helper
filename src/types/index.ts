@@ -92,7 +92,9 @@ export interface CompletedGame {
 export interface ScheduledGame {
   id: string;
   venue: string;
-  scheduledAt: string; // ISO дата/время
-  players: string[]; // имена игроков
+  scheduledAt: string;
+  scheduledAtTs: number;
+  scheduledAtDisplay: string;
+  players: string[];
   createdAt: string;
 }

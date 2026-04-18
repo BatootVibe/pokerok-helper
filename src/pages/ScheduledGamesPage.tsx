@@ -100,10 +100,15 @@ export function ScheduledGamesPage() {
     const finalVenue = newVenue.trim() || venue;
     if (!finalVenue || !dateTime || players.length < 2) return;
 
+    const scheduledAtTs = new Date(dateTime).getTime();
+    const scheduledAtDisplay = `${formatDate(dateTime)} в ${formatTime(dateTime)}`;
+
     const game: ScheduledGame = {
       id: editingGame?.id || generateId(),
       venue: finalVenue,
       scheduledAt: dateTime,
+      scheduledAtTs,
+      scheduledAtDisplay,
       players: players.map(p => p.name),
       createdAt: editingGame?.createdAt || new Date().toISOString(),
     };
@@ -160,8 +165,8 @@ export function ScheduledGamesPage() {
   // ---- Render ----
 
   const sorted = [...scheduled].sort((a, b) => {
-    const ta = a.scheduledAt ? new Date(a.scheduledAt).getTime() : Infinity;
-    const tb = b.scheduledAt ? new Date(b.scheduledAt).getTime() : Infinity;
+    const ta = a.scheduledAtTs || (a.scheduledAt ? new Date(a.scheduledAt).getTime() : Infinity);
+    const tb = b.scheduledAtTs || (b.scheduledAt ? new Date(b.scheduledAt).getTime() : Infinity);
     return ta - tb;
   });
 
@@ -374,7 +379,8 @@ function ScheduledEntry({ game, onEdit, canEdit, verifiedNames }: { game: Schedu
   const safeVenue = game.venue || 'Без локации';
   const safePlayers = Array.isArray(game.players) ? game.players : [];
   const safeScheduledAt = game.scheduledAt || '';
-  const past = safeScheduledAt ? isPast(safeScheduledAt, NEARBY_GAME_MARGIN) : false;
+  const displayTime = game.scheduledAtDisplay || (safeScheduledAt ? `${formatDate(safeScheduledAt)} в ${formatTime(safeScheduledAt)}` : '');
+  const past = game.scheduledAtTs ? game.scheduledAtTs < Date.now() - NEARBY_GAME_MARGIN : (safeScheduledAt ? isPast(safeScheduledAt, NEARBY_GAME_MARGIN) : false);
 
   const startHold = () => {
     if (!canEdit) return;
@@ -415,9 +421,7 @@ function ScheduledEntry({ game, onEdit, canEdit, verifiedNames }: { game: Schedu
         <div className="scheduled-info">
           <div className="scheduled-venue font-bold">{safeVenue}</div>
           <div className="scheduled-time text-muted">
-            {safeScheduledAt
-              ? `${formatDate(safeScheduledAt)} в ${formatTime(safeScheduledAt)}`
-              : 'Дата не указана'}
+            {displayTime || 'Дата не указана'}
           </div>
           <div className="scheduled-players text-muted">
             {safePlayers.length > 0

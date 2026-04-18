@@ -40,6 +40,8 @@ try { db.exec('ALTER TABLE game_results ADD FOREIGN KEY (user_id) REFERENCES use
 try { db.exec('ALTER TABLE games ADD FOREIGN KEY (owner_user_id) REFERENCES users(id)'); } catch {}
 try { db.exec('ALTER TABLE presets ADD FOREIGN KEY (owner_user_id) REFERENCES users(id)'); } catch {}
 try { db.exec('ALTER TABLE scheduled_games ADD FOREIGN KEY (owner_user_id) REFERENCES users(id)'); } catch {}
+try { db.exec('ALTER TABLE scheduled_games ADD COLUMN scheduled_at_ts INTEGER'); } catch {}
+try { db.exec('ALTER TABLE scheduled_games ADD COLUMN scheduled_at_display TEXT'); } catch {}
 
 db.exec(`CREATE TABLE IF NOT EXISTS notifications_sent (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -137,15 +139,10 @@ function checkScheduledReminders() {
   const scheduled = db.prepare('SELECT * FROM scheduled_games').all();
 
   for (const sg of scheduled) {
-    let scheduledAt;
-    try {
-      const parts = sg.scheduled_at.split(/[-T:]/);
-      scheduledAt = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), parseInt(parts[3]), parseInt(parts[4]) || 0).getTime();
-    } catch {
-      continue;
-    }
+    const scheduledAtTs = sg.scheduled_at_ts;
+    if (!scheduledAtTs) continue;
 
-    const diff = scheduledAt - now;
+    const diff = scheduledAtTs - now;
     const players = JSON.parse(sg.players || '[]');
 
     const reminders = [
@@ -160,7 +157,9 @@ function checkScheduledReminders() {
 
         console.log(`[notify] Sending ${r.type} reminder for game ${sg.id} at ${sg.venue}`);
         const playerNames = players.join(', ') || '—';
-        const msg = `⏰ <b>Напоминание!</b>\nИгра ${r.label}\n📍 ${sg.venue || 'Не указано'}\n👤 ${playerNames}`;
+        const timeDisplay = sg.scheduled_at_display || '';
+        const timeLine = timeDisplay ? `\n🕐 ${timeDisplay}` : '';
+        const msg = `⏰ <b>Напоминание!</b>\nИгра ${r.label}\n📍 ${sg.venue || 'Не указано'}${timeLine}\n👤 ${playerNames}`;
 
         for (const name of players) {
           const user = db.prepare('SELECT tg_id FROM users WHERE player_name = ?').get(name);
@@ -707,11 +706,16 @@ app.get('/api/health', (req, res) => {
 
 app.get('/api/scheduled', (req, res) => {
   try {
-    const games = db.prepare('SELECT * FROM scheduled_games ORDER BY scheduled_at DESC').all();
+    const games = db.prepare('SELECT * FROM scheduled_games ORDER BY scheduled_at_ts DESC').all();
     res.json(games.map(g => {
       let players;
       try { players = JSON.parse(g.players); } catch { players = []; }
-      return { id: g.id, venue: g.venue, scheduledAt: g.scheduled_at, players, createdAt: g.created_at };
+      return {
+        id: g.id, venue: g.venue, scheduledAt: g.scheduled_at,
+        scheduledAtTs: g.scheduled_at_ts || null,
+        scheduledAtDisplay: g.scheduled_at_display || null,
+        players, createdAt: g.created_at,
+      };
     }));
   } catch {
     res.json([]);
@@ -719,7 +723,7 @@ app.get('/api/scheduled', (req, res) => {
 });
 
 app.post('/api/scheduled', requireTelegramAuth, strictLimiter, (req, res) => {
-  const { id, venue, scheduledAt, players, createdAt } = req.body;
+  const { id, venue, scheduledAt, scheduledAtTs, scheduledAtDisplay, players, createdAt } = req.body;
   const ownerUserId = req.userId;
 
   const err = validateString(id, 'id') || validateString(venue, 'venue', 1, 100)
@@ -728,8 +732,8 @@ app.post('/api/scheduled', requireTelegramAuth, strictLimiter, (req, res) => {
 
   try {
     db.prepare(
-      'INSERT OR REPLACE INTO scheduled_games (id, venue, scheduled_at, players, created_at, owner_user_id) VALUES (?, ?, ?, ?, ?, ?)'
-    ).run(id, venue, scheduledAt, JSON.stringify(players), createdAt || new Date().toISOString(), ownerUserId);
+      'INSERT OR REPLACE INTO scheduled_games (id, venue, scheduled_at, scheduled_at_ts, scheduled_at_display, players, created_at, owner_user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(id, venue, scheduledAt, scheduledAtTs || null, scheduledAtDisplay || null, JSON.stringify(players), createdAt || new Date().toISOString(), ownerUserId);
     res.json({ success: true });
   } catch (dbErr) {
     console.error('Failed to save scheduled game:', dbErr.message);

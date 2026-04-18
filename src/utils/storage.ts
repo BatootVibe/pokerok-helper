@@ -237,11 +237,11 @@ export async function deleteScheduledGame(id: string): Promise<void> {
 
 export async function findNearbyScheduledGame(): Promise<ScheduledGame | null> {
   const games = await loadScheduledGames();
-  const now = new Date();
+  const now = Date.now();
 
   for (const game of games) {
-    const scheduled = new Date(game.scheduledAt).getTime();
-    if (Math.abs(now.getTime() - scheduled) <= NEARBY_GAME_MARGIN) {
+    const scheduled = game.scheduledAtTs || new Date(game.scheduledAt).getTime();
+    if (Math.abs(now - scheduled) <= NEARBY_GAME_MARGIN) {
       return game;
     }
   }
