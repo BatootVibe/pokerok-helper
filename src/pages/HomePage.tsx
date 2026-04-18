@@ -17,11 +17,9 @@ export function HomePage() {
   const [showBindModal, setShowBindModal] = useState(false);
   const [bindName, setBindName] = useState('');
   const [bindError, setBindError] = useState('');
-  const [userProfile, setUserProfile] = useState<{ name: string; isAdmin?: boolean } | null>(null);
 
   useEffect(() => {
     getUserProfile().then(profile => {
-      setUserProfile(profile);
       if (!profile || !profile.name) {
         setShowBindModal(true);
       }
@@ -33,7 +31,6 @@ export function HomePage() {
     setBindError('');
     const result = await saveUserProfile({ name: bindName.trim() });
     if (result.success) {
-      setUserProfile({ name: bindName.trim() });
       setBindName('');
       setShowBindModal(false);
     } else {
