@@ -7,7 +7,9 @@ export function OfflineSettings({profileName=''}:{profileName?:string}) {
   const [,render]=useState(0); const s=getOffline();
   const [url,setUrl]=useState(s.url); const [token,setToken]=useState(s.token); const [message,setMessage]=useState(''); const [code,setCode]=useState(''); const [selectedPlayer,setSelectedPlayer]=useState('');
   const [telegramUsername,setTelegramUsername]=useState(() => loadLocalProfile()?.telegramUsername || ''); const [profileMessage,setProfileMessage]=useState('');
-  const telegramMode=Boolean(window.Telegram?.WebApp?.initData);
+  // Full offline controls belong to the APK. Browser/Telegram web-app keeps
+  // only the compact key and history-linking tools, even when run locally.
+  const telegramMode=!isAndroid;
   useEffect(()=>{const refresh=()=>render(n=>n+1);window.addEventListener('poker-offline',refresh);return()=>window.removeEventListener('poker-offline',refresh);},[]);
   async function save() {
     try {
