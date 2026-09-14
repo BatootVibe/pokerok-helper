@@ -7,6 +7,7 @@ export function OfflineSettings({profileName=''}:{profileName?:string}) {
   const [,render]=useState(0); const s=getOffline();
   const [url,setUrl]=useState(s.url); const [token,setToken]=useState(s.token); const [message,setMessage]=useState(''); const [code,setCode]=useState(''); const [selectedPlayer,setSelectedPlayer]=useState('');
   const [telegramUsername,setTelegramUsername]=useState(() => loadLocalProfile()?.telegramUsername || ''); const [profileMessage,setProfileMessage]=useState('');
+  const telegramMode=Boolean(window.Telegram?.WebApp?.initData);
   useEffect(()=>{const refresh=()=>render(n=>n+1);window.addEventListener('poker-offline',refresh);return()=>window.removeEventListener('poker-offline',refresh);},[]);
   async function save() {
     try {
@@ -21,7 +22,16 @@ export function OfflineSettings({profileName=''}:{profileName?:string}) {
     const value=JSON.stringify({format:'poker-feature-backup',state:{...s,token:''},local:Object.fromEntries(Object.keys(localStorage).filter(k=>k.startsWith('poker_')).map(k=>[k,localStorage.getItem(k)]))});
     if(isAndroid)await NativeHost.exportBackup({value});else {const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([value],{type:'application/json'}));a.download='poker-feature-backup.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);}
   }
-  return <details className="card offline-panel settings-details"><summary>Хранение и синхронизация</summary>
+  return <details className="card offline-panel settings-details"><summary>{telegramMode?'Подключение APK и привязка истории':'Хранение и синхронизация'}</summary>
+    {telegramMode ? <div className="offline-webapp-tools">
+      <p>Создайте ключ для APK, чтобы приложение могло синхронизировать ваши игры после восстановления хостинга.</p>
+      <button className="btn btn-secondary" onClick={async()=>{try{const r=await apiPost<{token:string}>('/api/offline/device-token',{});setToken(r.token);setMessage('Ключ создан. Скопируйте его в APK.');}catch(e){setMessage(String(e));}}}>Создать ключ для APK</button>
+      {token&&<textarea readOnly value={token} aria-label="Ключ для APK"/>}
+      <p>Для привязки истории введите код, который показывает ведущий в APK.</p>
+      <input className="input" value={code} onChange={e=>setCode(e.target.value)} placeholder="Код от ведущего"/>
+      <button className="btn btn-secondary" onClick={async()=>{try{await apiPost('/api/offline/claim/redeem',{code:code.trim()});setMessage('История связана с вашим Telegram-аккаунтом.');}catch(e){setMessage(String(e));}}}>Подтвердить привязку</button>
+      <p role="status">{message}</p>
+    </div> : <>
     <details className="offline-group"><summary>Подключение и синхронизация</summary>
     <p>Игры сохраняются на устройстве. Для подключения APK получите ключ в настройках вебаппа после входа через Telegram.</p>
     <label>Адрес сервера<input className="input" value={url} onChange={e=>setUrl(e.target.value)} placeholder="https://example.com"/></label>
@@ -57,5 +67,6 @@ export function OfflineSettings({profileName=''}:{profileName?:string}) {
       <button className="btn btn-secondary" disabled={!profileName} onClick={()=>{try{saveLocalProfile({name:profileName,telegramUsername});setProfileMessage('Сохранено на устройстве.');}catch(e){setProfileMessage(e instanceof Error?e.message:'Не удалось сохранить.');}}}>Сохранить юзернейм</button>
       {!profileName&&<p>Сначала укажите имя в разделе «Профиль».</p>}<p role="status">{profileMessage}</p>
     </details>
+    </>}
   </details>;
 }
