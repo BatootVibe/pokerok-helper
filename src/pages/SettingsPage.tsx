@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useGame } from '../context/GameContext';
 import { getUserProfile, saveUserProfile, updateUserProfile } from '../utils/storage';
 import { HeaderBack } from '../components/HeaderBack';
+import { OfflineSettings } from '../components/OfflineSettings';
+import { loadLocalProfile } from '../utils/localProfile';
 
 export default function SettingsPage() {
   const navigate = useNavigate();
@@ -14,12 +16,8 @@ export default function SettingsPage() {
   const [userProfile, setUserProfile] = useState<{ name: string; isAdmin?: boolean } | null>(null);
 
   useEffect(() => {
-    const isGuest = localStorage.getItem('poker_guest_mode') === 'true';
     getUserProfile().then(profile => {
       setUserProfile(profile);
-      if (!isGuest && (!profile || !profile.name)) {
-        setShowBindModal(true);
-      }
     });
   }, []);
 
@@ -55,7 +53,6 @@ export default function SettingsPage() {
   return (
     <div className="page">
       <HeaderBack title="Настройки" />
-
       <div className="card settings-card" onClick={() => navigate('/presets')}>
         <h3 className="mb-4">🎯 Пресеты фишек</h3>
         <p className="text-muted text-sm mb-8">
@@ -98,6 +95,8 @@ export default function SettingsPage() {
           </>
         )}
       </div>
+
+      <OfflineSettings profileName={userProfile?.name || ''} />
 
       {userProfile?.isAdmin && (
         <div className="card settings-card" onClick={() => navigate('/admin')}>

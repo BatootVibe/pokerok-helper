@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGame } from '../context/GameContext';
 import { loadPresets } from '../utils/storage';
@@ -7,6 +7,7 @@ import { HeaderBack } from '../components/HeaderBack';
 import { CHIP_INPUTS_KEY } from '../utils/constants';
 import { apiUpdateActiveGameChips, apiGetMyActiveGame } from '../utils/api';
 import { useActiveGamePolling } from '../utils/hooks';
+import { LanPanel } from '../components/LanPanel';
 
 export default function ChipCountPage() {
   const navigate = useNavigate();
@@ -15,7 +16,6 @@ export default function ChipCountPage() {
   const [presets, setPresets] = useState<ChipPreset[]>([]);
   const [chipInputs, setChipInputs] = useState<Record<string, Record<number, number>>>({});
   const [expandedPlayerId, setExpandedPlayerId] = useState<string | null>(null);
-  const apiChipsTimerRef = useRef<number | null>(null);
   const dirtyPlayersRef = useRef<Set<string>>(new Set());
 
   const { setNavigate } = useActiveGamePolling(3000);
@@ -81,7 +81,7 @@ export default function ChipCountPage() {
     );
   }
 
-  const handleChipChange = useCallback((playerId: string, chipIndex: number, value: string) => {
+  const handleChipChange = (playerId: string, chipIndex: number, value: string) => {
     const num = Math.max(0, parseInt(value) || 0);
     dirtyPlayersRef.current.add(playerId);
     setChipInputs(prev => {
@@ -93,17 +93,13 @@ export default function ChipCountPage() {
         },
       };
 
-      if (apiChipsTimerRef.current) clearTimeout(apiChipsTimerRef.current);
-      apiChipsTimerRef.current = window.setTimeout(() => {
         apiUpdateActiveGameChips(currentGame.id, playerId, updated[playerId])
           .then(() => dirtyPlayersRef.current.delete(playerId))
-          .catch(() => {});
-        apiChipsTimerRef.current = null;
-      }, 500);
+          .catch(e => alert('Не удалось сохранить фишки: '+e.message));
 
       return updated;
     });
-  }, [currentGame]);
+  };
 
   if (!selectedPreset) {
     return (
@@ -187,6 +183,7 @@ export default function ChipCountPage() {
     <div className="page">
       <HeaderBack title="Подсчёт фишек" />
 
+      {isOwner && <LanPanel game={currentGame} preset={selectedPreset} onAccepted={(id,counts)=>{dirtyPlayersRef.current.delete(id);setChipInputs(prev=>({...prev,[id]:counts}));}} />}
       {currentGame.players.map(player => {
         const isExpanded = expandedPlayerId === player.id;
         const filled = isPlayerFilled(player.id);

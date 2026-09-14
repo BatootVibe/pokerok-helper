@@ -1,4 +1,5 @@
 import { CompletedGame, ChipPreset, ScheduledGame, Game } from '../types';
+import { getOffline, isLocalRoute, localRequest } from '../offline/store';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 const API_TIMEOUT = 30000; // 30 секунд
@@ -17,17 +18,37 @@ interface ApiError extends Error {
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  // Telegram webapp keeps using the hosted API.  The standalone APK/browser
+  // without Telegram identity uses the local-first offline store.
+  if(isLocalRoute(path) && !getInitData()) return localRequest(path,options);
+  if(!getInitData() && path==='/api/venues') {
+    const venues: string[]=JSON.parse(localStorage.getItem('poker_venues')||'[]');
+    if(options?.method==='POST') {
+      const name=JSON.parse(String(options.body)).name;
+      localStorage.setItem('poker_venues',JSON.stringify([...new Set([...venues,name])]));
+      return {success:true} as T;
+    }
+    return venues as T;
+  }
+  if(!getInitData() && path.startsWith('/api/venues/')&&options?.method==='DELETE') {
+    const name=decodeURIComponent(path.slice('/api/venues/'.length));
+    localStorage.setItem('poker_venues',JSON.stringify(JSON.parse(localStorage.getItem('poker_venues')||'[]').filter((v:string)=>v!==name)));
+    return {success:true} as T;
+  }
+  const config=getOffline();
+  if(!config.url&&!API_BASE&&!getInitData()) throw new Error('Сервер не подключён');
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT);
 
   const initData = getInitData();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if(config.token) headers.Authorization='Bearer '+config.token;
   if (initData) {
     headers['x-telegram-init-data'] = initData;
   }
 
   try {
-    const res = await fetch(`${API_BASE}${path}`, {
+    const res = await fetch(`${config.url||API_BASE}${path}`, {
       ...options,
       headers,
       signal: controller.signal,

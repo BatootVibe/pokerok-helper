@@ -48,8 +48,8 @@ interface GameContextType {
   currentGame: Game | null;
   isOwner: boolean;
   remoteChipInputs: Record<string, Record<number, number>>;
-  createGame: (players: { name: string; userId?: number }[], startingChips: number, buyInRubles: number, chipPresetId: string | null, venue: string, chipPresetIsTemporary?: boolean) => void;
-  addPlayer: (player: { name: string; userId?: number }) => void;
+  createGame: (players: { name: string; userId?: number; localId?: string }[], startingChips: number, buyInRubles: number, chipPresetId: string | null, venue: string, chipPresetIsTemporary?: boolean) => void;
+  addPlayer: (player: { name: string; userId?: number; localId?: string }) => void;
   incrementRebuy: (playerId: string) => void;
   decrementRebuy: (playerId: string) => void;
   removePlayer: (playerId: string) => void;
@@ -249,14 +249,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
       if (!currentGameRef.current) return;
       apiSaveActiveGame(currentGameRef.current, {}).catch(() => {});
       apiSaveTimerRef.current = null;
-    }, 500);
+    }, 0);
 
     return () => {
       if (apiSaveTimerRef.current) clearTimeout(apiSaveTimerRef.current);
     };
   }, [currentGame, initialized, isOwner]);
 
-  const createGame = useCallback((players: { name: string; userId?: number }[], startingChips: number, buyInRubles: number, chipPresetId: string | null, venue: string, chipPresetIsTemporary?: boolean) => {
+  const createGame = useCallback((players: { name: string; userId?: number; localId?: string }[], startingChips: number, buyInRubles: number, chipPresetId: string | null, venue: string, chipPresetIsTemporary?: boolean) => {
     const prevGame = currentGameRef.current;
     if (prevGame) {
       apiDeleteActiveGame(prevGame.id).catch(() => {});
@@ -268,7 +268,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
     const safeStartingChips = startingChips > 0 ? startingChips : 1;
     const gamePlayers: GamePlayer[] = players.map(p => ({
-      id: generateId(),
+      id: p.localId || generateId(),
       name: p.name,
       userId: p.userId,
       rebuyQty: 0,
@@ -295,10 +295,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
     apiSaveActiveGame(game, {}).catch(() => {});
   }, []);
 
-  const addPlayer = useCallback((player: { name: string; userId?: number }) => {
+  const addPlayer = useCallback((player: { name: string; userId?: number; localId?: string }) => {
     setCurrentGame(prev => {
       if (!prev) return prev;
-      const newPlayer: GamePlayer = { id: generateId(), name: player.name, userId: player.userId, rebuyQty: 0 };
+      const newPlayer: GamePlayer = { id: player.localId || generateId(), name: player.name, userId: player.userId, rebuyQty: 0 };
       return { ...prev, players: [...prev.players, newPlayer] };
     });
   }, []);

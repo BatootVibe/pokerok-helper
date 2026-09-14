@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">PokerOK Helper</string>
+    <string name="title_activity_main">PokerOK Helper</string>
+    <string name="package_name">com.batootvibe.pokerok</string>
+    <string name="custom_url_scheme">com.batootvibe.pokerok</string>
+</resources>

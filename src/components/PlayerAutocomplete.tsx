@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { getAllPlayers } from '../utils/storage';
 
 export interface Player {
+  localId?: string;
   name: string;
   userId?: number;
   gamesCount?: number;
@@ -28,7 +29,7 @@ export function PlayerAutocomplete({ players, onAddPlayer, onRemovePlayer, maxPl
   // Загружаем всех привязанных пользователей при монтировании
   useEffect(() => {
     getAllPlayers().then(list => {
-      const sorted = list.map(p => ({ name: p.name, userId: p.id, gamesCount: p.gamesCount }))
+      const sorted = list.map(p => ({ name: p.name, userId: p.id || undefined, localId: p.localId, gamesCount: p.gamesCount }))
         .sort((a, b) => (b.gamesCount || 0) - (a.gamesCount || 0));
       setAllPlayers(sorted);
     });

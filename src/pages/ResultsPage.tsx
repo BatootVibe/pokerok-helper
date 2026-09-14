@@ -58,7 +58,7 @@ export default function ResultsPage() {
     setFinishing(true);
     if (!results) return;
     try {
-      if (isBound) {
+      {
         const completedGame: CompletedGame = {
           id: currentGame.id,
           date: currentGame.date,
@@ -199,7 +199,7 @@ export default function ResultsPage() {
             </button>
           ) : (
             <button className="btn btn-danger" onClick={handleFinish} disabled={finishing}>
-              {finishing ? 'Завершение...' : '✅ Завершить без сохранения'}
+              {finishing ? 'Сохранение...' : '✅ Завершить и сохранить на устройстве'}
             </button>
           )
         ) : (

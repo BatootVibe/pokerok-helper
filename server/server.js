@@ -7,10 +7,11 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
+import { installOffline, deviceUser } from './offline.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '.env') });
-const db = new Database(path.join(__dirname, 'poker.db'));
+const db = new Database(process.env.DB_PATH || path.join(__dirname, 'poker.db'));
 
 // Включаем WAL mode для лучшей конкурентности
 db.pragma('journal_mode = WAL');
@@ -197,6 +198,7 @@ const app = express();
 
 // === CORS: localhost + продакшен домены из окружения ===
 const allowedOrigins = [
+  'https://localhost',
   'http://localhost:5173',
   'http://localhost:3000',
   'http://127.0.0.1:5173',
@@ -284,6 +286,8 @@ function verifyTelegramInitData(initData, botToken) {
  * tgId из body/query НИКОГДА не принимается.
  */
 function requireTelegramAuth(req, res, next) {
+  const device=deviceUser(db,req.headers.authorization);
+  if(device) {req.userId=device.id;req.tgId=device.tg_id;req.playerName=device.player_name;return next();}
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
 
   if (!botToken) {
@@ -295,7 +299,7 @@ function requireTelegramAuth(req, res, next) {
   const initData = req.headers['x-telegram-init-data'] || req.body?._initData;
   const verified = verifyTelegramInitData(initData, botToken);
 
-  if (!verified || !verified.user?.id) {
+  if (!verified || !verified.user?.id || !Number.isFinite(Number(verified.auth_date)) || Math.abs(Date.now()/1000-Number(verified.auth_date))>86400) {
     return res.status(401).json({ error: 'Невалидная подпись Telegram. Обновите приложение.' });
   }
 
@@ -391,6 +395,8 @@ function validateArray(val, name) {
 }
 
 // ===== ИГРЫ =====
+
+installOffline(app,db,requireTelegramAuth);
 
 app.get('/api/games', (req, res) => {
   const games = db.prepare(`
