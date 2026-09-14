@@ -1,12 +1,65 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGame } from '../context/GameContext';
+import { HeaderHome } from '../components/HeaderBack';
+import { ConfirmModal } from '../components/ConfirmModal';
+import { PlayerAutocomplete, Player } from '../components/PlayerAutocomplete';
+import { formatDuration } from '../utils/date';
+import { useActiveGamePolling } from '../utils/hooks';
+import { HOLD_DURATION_REBUY } from '../utils/constants';
 
-export function GameTablePage() {
+export default function GameTablePage() {
   const navigate = useNavigate();
-  const { currentGame, addPlayer, incrementRebuy, removePlayer, finishGame } = useGame();
-  const [newPlayerName, setNewPlayerName] = useState('');
+  const { currentGame, isOwner, addPlayer, incrementRebuy, decrementRebuy, finishGame } = useGame();
+  const [players, setPlayers] = useState<Player[]>([]);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [holdingId, setHoldingId] = useState<string | null>(null);
+  const [elapsed, setElapsed] = useState(0);
+  const holdTimerRef = useRef<number | null>(null);
+  const holdFiredRef = useRef(false);
+  const touchUsedRef = useRef(false);
+
+  const { setNavigate } = useActiveGamePolling(3000);
+  useEffect(() => { setNavigate(navigate); }, [navigate, setNavigate]);
+
+  useEffect(() => {
+    if (!currentGame) return;
+    const start = new Date(currentGame.date).getTime();
+    const tick = () => setElapsed(Date.now() - start);
+    tick();
+    const id = setInterval(tick, 10000);
+    return () => clearInterval(id);
+  }, [currentGame]);
+
+  const startHold = useCallback((playerId: string) => {
+    holdFiredRef.current = false;
+    setHoldingId(playerId);
+    holdTimerRef.current = window.setTimeout(() => {
+      holdTimerRef.current = null;
+      holdFiredRef.current = true;
+      setHoldingId(null);
+      if (decrementRebuy) decrementRebuy(playerId);
+    }, HOLD_DURATION_REBUY);
+  }, [decrementRebuy]);
+
+  const endHold = useCallback((playerId: string) => {
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+      if (!holdFiredRef.current) {
+        incrementRebuy(playerId);
+      }
+    }
+    setHoldingId(null);
+  }, [incrementRebuy]);
+
+  const cancelHold = useCallback(() => {
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+    setHoldingId(null);
+  }, []);
 
   if (!currentGame) {
     return (
@@ -19,140 +72,115 @@ export function GameTablePage() {
     );
   }
 
-  const handleAddPlayer = () => {
-    const name = newPlayerName.trim();
-    if (name) {
-      addPlayer(name);
-      setNewPlayerName('');
+  const handleAddPlayer = (player: Player) => {
+    const isDuplicate = currentGame.players.some(p => p.name.toLowerCase() === player.name.toLowerCase());
+    if (!isDuplicate && currentGame.players.length < 10) {
+      addPlayer(player);
+      setPlayers([]);
     }
   };
 
   const handleEmergencyFinish = () => {
-    if (!currentGame) return;
-    const games = JSON.parse(localStorage.getItem('poker_games') || '{}');
-    delete games[currentGame.id];
-    localStorage.setItem('poker_games', JSON.stringify(games));
-    localStorage.removeItem('poker_current_game_id');
     finishGame();
     navigate('/');
   };
 
   return (
     <div className="page">
-      <h1 className="page-title">🃏 Игровой стол</h1>
+      <HeaderHome title={`Игровой стол ⏱ ${formatDuration(elapsed)}`} />
 
-      {/* Игроки */}
       <div className="card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <div className="card-header">
           <h3>Игроки</h3>
-          <span style={{ fontSize: 13, color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.1)', padding: '2px 10px', borderRadius: 12 }}>
-            {currentGame.players.length}
-          </span>
+          <span className="badge">{currentGame.players.length}</span>
         </div>
 
         {currentGame.players.length > 0 ? (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <div className="player-grid">
             {currentGame.players.map((player) => (
-              <div key={player.id} className="player-row" style={{
-                flexDirection: 'column',
-                alignItems: 'stretch',
-                padding: '10px 12px',
-                margin: 0,
-                gap: 6,
-              }}>
-                <span className="player-name" style={{ fontSize: 14 }}>{player.name}</span>
-                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 10 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>BI</span>
-                    <span style={{ fontSize: 13, fontWeight: 700 }}>1</span>
+              <div key={player.id} className="player-card">
+                <span className={player.userId ? 'player-name verified-player' : 'player-name'}>
+                  {player.name}
+                </span>
+                <div className="player-stats-row">
+                  <div className="stat-badge">
+                    <span className="stat-label">BI</span>
+                    <span className="stat-value">1</span>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>RB</span>
-                    <span style={{ fontSize: 14, fontWeight: 700, minWidth: 16, textAlign: 'center' }}>{player.rebuyQty}</span>
-                    <button
-                      className="btn btn-primary btn-icon btn-small"
-                      style={{ width: 26, height: 26, fontSize: 16 }}
-                      onClick={() => incrementRebuy(player.id)}
-                    >
-                      +
-                    </button>
+                  <div className="stat-badge">
+                    <span className="stat-label">RB</span>
+                    <span className="stat-value">{player.rebuyQty}</span>
                   </div>
-                  <button
-                    className="btn btn-danger btn-icon btn-small"
-                    style={{ width: 26, height: 26, fontSize: 14 }}
-                    onClick={() => removePlayer(player.id)}
-                  >
-                    ×
-                  </button>
                 </div>
+                {isOwner && (
+                  <button
+                    className={`btn btn-primary rebuy-btn ${holdingId === player.id ? 'rebuy-btn-holding' : ''}`}
+                    onMouseDown={() => { if (!touchUsedRef.current) startHold(player.id); }}
+                    onMouseUp={() => { if (!touchUsedRef.current) endHold(player.id); touchUsedRef.current = false; }}
+                    onMouseLeave={cancelHold}
+                    onTouchStart={() => { touchUsedRef.current = true; startHold(player.id); }}
+                    onTouchEnd={() => { endHold(player.id); }}
+                    onTouchCancel={cancelHold}
+                    onTouchMove={(e) => { e.preventDefault(); cancelHold(); }}
+                  >
+                    {holdingId === player.id ? '- Ребай' : '+ Ребай'}
+                  </button>
+                )}
               </div>
             ))}
           </div>
         ) : (
-          <p style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: 14, marginTop: 8 }}>
-            Пока нет игроков
-          </p>
+          <p className="empty-text">Пока нет игроков</p>
         )}
       </div>
 
-      {/* Добавить игрока */}
-      <div className="card" style={{ background: 'rgba(255, 255, 255, 0.03)', borderStyle: 'dashed', opacity: 0.8 }}>
-        <div className="add-player-form" style={{ marginBottom: 0 }}>
-          <input
-            className="input"
-            type="text"
-            placeholder="Имя нового игрока"
-            value={newPlayerName}
-            onChange={e => setNewPlayerName(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleAddPlayer()}
+      {isOwner && (
+        <div className="card card-dashed">
+          <PlayerAutocomplete
+            players={players}
+            onAddPlayer={handleAddPlayer}
+            onRemovePlayer={() => {}}
+            showHistoryBtn={false}
           />
-          <button className="btn btn-primary btn-small" onClick={handleAddPlayer}>
-            +
-          </button>
+        </div>
+      )}
+
+      <div className="fixed-actions">
+        <div className="form-actions">
+          {isOwner ? (
+            <>
+              <button
+                className="btn btn-secondary"
+                onClick={() => setShowConfirm(true)}
+              >
+                Отмена
+              </button>
+              <button
+                className="btn btn-success"
+                onClick={() => navigate('/chips-count')}
+              >
+                Подсчёт
+              </button>
+            </>
+          ) : (
+            <button
+              className="btn btn-success"
+              onClick={() => navigate('/chips-count')}
+            >
+              Подсчёт
+            </button>
+          )}
         </div>
       </div>
 
-      <div className="spacer" />
-
-      <button
-        className="btn btn-success mt-16"
-        onClick={() => navigate('/finish')}
-        style={{ fontSize: 17, padding: '16px 24px' }}
-      >
-        💰 Считаемся
-      </button>
-      <button
-        className="btn btn-secondary mt-16"
-        onClick={() => navigate('/')}
-      >
-        На главную
-      </button>
-      <button
-        className="btn btn-danger mt-16"
-        style={{ fontSize: 13, padding: '12px 24px', opacity: 0.8 }}
-        onClick={() => setShowConfirm(true)}
-      >
-        Завершить игру
-      </button>
-
-      {/* Модальное окно подтверждения */}
       {showConfirm && (
-        <div className="modal-overlay">
-          <div className="card" style={{ maxWidth: 360, width: '100%', animation: 'slideUp 0.3s ease' }}>
-            <h3 style={{ marginBottom: 12, textAlign: 'center' }}>⚠️ Завершить игру?</h3>
-            <p style={{ textAlign: 'center', color: 'var(--text-secondary)', marginBottom: 20 }}>
-              Результаты не будут сохранены в историю.
-            </p>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button className="btn btn-danger btn-small" style={{ flex: 1 }} onClick={handleEmergencyFinish}>
-                Завершить
-              </button>
-              <button className="btn btn-secondary btn-small" style={{ flex: 1 }} onClick={() => setShowConfirm(false)}>
-                Отмена
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmModal
+          title="⚠️ Завершить игру?"
+          description="Результаты не будут сохранены в историю."
+          danger
+          onConfirm={handleEmergencyFinish}
+          onCancel={() => setShowConfirm(false)}
+        />
       )}
     </div>
   );

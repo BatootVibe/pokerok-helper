@@ -1,364 +1,390 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useGame } from '../context/GameContext';
-import { loadPresets, loadVenues, saveVenue, deleteVenue, loadGameHistory, findNearbyScheduledGame, deleteScheduledGame } from '../utils/storage';
+import { loadPresets, loadVenues, saveVenue, deleteVenue, loadGameHistory, findNearbyScheduledGame, deleteScheduledGame, getAllPlayers, getUserProfile } from '../utils/storage';
+import { HeaderBack } from '../components/HeaderBack';
 import { ChipPreset } from '../types';
+import { PlayerAutocomplete, Player } from '../components/PlayerAutocomplete';
+import { useVerifiedPlayers } from '../utils/hooks';
 
-export function CreateGamePage() {
+export default function CreateGamePage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { createGame } = useGame();
+  const { verifiedNames } = useVerifiedPlayers();
 
-  const [players, setPlayers] = useState<string[]>([]);
-  const [newPlayerName, setNewPlayerName] = useState('');
+  // Состояние игроков (теперь объекты)
+  const [players, setPlayers] = useState<Player[]>([]);
+
+  // Настройки игры
   const [startingChips, setStartingChips] = useState('500');
   const [buyInRubles, setBuyInRubles] = useState('250');
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
-  const [presets, setPresets] = useState<ChipPreset[]>([]);
+  const [showPresetDropdown, setShowPresetDropdown] = useState(false);
+  const appliedPresetRef = useRef<string | null>(null);
+
+  // Подсветка карточек при нажатии на disabled-кнопку
+  const [highlightCard, setHighlightCard] = useState<'preset' | 'players' | null>(null);
+
+  const triggerHighlight = (card: 'preset' | 'players') => {
+    setHighlightCard(card);
+    setTimeout(() => setHighlightCard(null), 800);
+  };
+
+  // Локации
   const [venues, setVenues] = useState<string[]>([]);
   const [selectedVenue, setSelectedVenue] = useState('');
   const [newVenueName, setNewVenueName] = useState('');
   const [showVenueInput, setShowVenueInput] = useState(false);
-  const [lastGamePlayers, setLastGamePlayers] = useState<string[]>([]);
+
+  // Данные для подсказок (Nearby Game)
   const [nearbyGame, setNearbyGame] = useState<{ id: string; venue: string; players: string[] } | null>(null);
   const [showNearbyPrompt, setShowNearbyPrompt] = useState(false);
+  const [presets, setPresets] = useState<ChipPreset[]>([]);
 
+  // Закрытие dropdown при клике снаружи
+  useEffect(() => {
+    if (!showPresetDropdown) return;
+    const handler = () => setShowPresetDropdown(false);
+    document.addEventListener('click', handler);
+    return () => document.removeEventListener('click', handler);
+  }, [showPresetDropdown]);
+
+  // Загрузка данных при старте
   useEffect(() => {
     loadPresets().then(p => setPresets(p.filter(x => Array.isArray(x.chips))));
-    setVenues(loadVenues());
-    // Загружаем игроков из последней игры
+    loadVenues().then(v => setVenues(v));
+
+    // Загрузка последней игры для быстрого добавления игроков
     loadGameHistory().then(games => {
       if (games.length > 0) {
-        const names = games[0].players.map(p => p.playerName);
-        setLastGamePlayers(names);
+        window.lastGamePlayers = games[0].players.map(p => ({ name: p.playerName, userId: p.userId }));
+      } else {
+        window.lastGamePlayers = undefined;
       }
     });
-    // Проверяем ближайшую запланированную игру
-    findNearbyScheduledGame().then(game => {
-      if (game) {
-        setNearbyGame({ id: game.id, venue: game.venue, players: game.players });
-        setShowNearbyPrompt(true);
+
+    // Проверка запланированных игр (только для привязанных)
+    getUserProfile().then(profile => {
+      if (profile) {
+        findNearbyScheduledGame().then(game => {
+          if (game) {
+            setNearbyGame({ id: game.id, venue: game.venue, players: game.players });
+            setShowNearbyPrompt(true);
+          }
+        });
       }
     });
   }, []);
 
-  const useNearbyData = async () => {
+  // Авто-выбор пресета если вернулись со страницы создания пресета
+  useEffect(() => {
+    const presetId = sessionStorage.getItem('pendingPresetId') || location.state?.selectedPresetId;
+    if (presetId && appliedPresetRef.current !== presetId) {
+      setSelectedPresetId(presetId);
+      appliedPresetRef.current = presetId;
+      sessionStorage.removeItem('pendingPresetId');
+    }
+  }, [location.state]);
+
+  const addPlayer = useCallback((player: Player) => {
+    setPlayers(prev => {
+      if (prev.length >= 10) return prev;
+      if (prev.some(p => p.name.toLowerCase() === player.name.toLowerCase())) return prev;
+      return [...prev, player];
+    });
+  }, []);
+
+  const removePlayer = useCallback((index: number) => {
+    setPlayers(prev => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const useNearbyData = useCallback(async () => {
     if (nearbyGame) {
-      // Удаляем запланированную игру
       await deleteScheduledGame(nearbyGame.id);
-      // Добавляем место
       if (nearbyGame.venue) {
-        const existingVenues = loadVenues();
+        const existingVenues = await loadVenues();
         if (!existingVenues.includes(nearbyGame.venue)) {
+          await saveVenue(nearbyGame.venue);
           setVenues(prev => [nearbyGame!.venue, ...prev]);
         }
         setSelectedVenue(nearbyGame.venue);
       }
-      // Добавляем игроков
-      setPlayers(nearbyGame.players);
+      // Загружаем привязанных игроков и подставляем userId
+      const allPlayers = await getAllPlayers();
+      const playerMap = new Map(allPlayers.map(p => [p.name.toLowerCase(), { name: p.name, userId: p.id }]));
+      const playersWithUserId = nearbyGame.players.map(name => {
+        const linked = playerMap.get(name.toLowerCase());
+        return linked || { name };
+      });
+      setPlayers(playersWithUserId);
     }
     setShowNearbyPrompt(false);
-  };
-  
-  const chipPrice = startingChips && buyInRubles 
+  }, [nearbyGame]);
+
+  const dismissPrompt = useCallback(() => {
+    setShowNearbyPrompt(false);
+  }, []);
+
+  const skipAndDelete = useCallback(async () => {
+    if (nearbyGame) {
+      await deleteScheduledGame(nearbyGame.id);
+    }
+    setShowNearbyPrompt(false);
+  }, [nearbyGame]);
+
+  const chipPrice = startingChips && buyInRubles && Number(startingChips) > 0
     ? (Number(buyInRubles) / Number(startingChips)).toFixed(2)
     : null;
 
-  const addPlayer = () => {
-    const name = newPlayerName.trim();
-    if (name && !players.includes(name)) {
-      setPlayers([...players, name]);
-      setNewPlayerName('');
-    }
-  };
+  const handleCreate = useCallback(async () => {
+    if (players.length < 2 || Number(startingChips) <= 0 || Number(buyInRubles) < 0 || !selectedPresetId) return;
 
-  const addLastPlayers = () => {
-    const newOnes = lastGamePlayers.filter(n => !players.includes(n));
-    if (newOnes.length > 0) {
-      setPlayers([...players, ...newOnes]);
-    }
-  };
-
-  const removePlayer = (index: number) => {
-    setPlayers(players.filter((_, i) => i !== index));
-  };
-
-  const handleCreate = () => {
-    if (players.length === 0) return;
-    if (!startingChips || !buyInRubles) return;
-    if (!selectedPresetId) return;
-
-    // Сохраняем новое место, если введено
     const venue = newVenueName.trim() || selectedVenue || 'Не указано';
     if (newVenueName.trim() && !venues.includes(newVenueName.trim())) {
-      saveVenue(newVenueName.trim());
-      setVenues(prev => [newVenueName.trim(), ...prev]);
-    } else if (selectedVenue) {
-      saveVenue(selectedVenue);
+      await saveVenue(newVenueName.trim());
     }
 
+    // Создаем игру с объектами игроков
+    const selectedPreset = presets.find(p => p.id === selectedPresetId);
     createGame(
       players,
       Number(startingChips),
       Number(buyInRubles),
       selectedPresetId,
-      venue
+      venue,
+      !!selectedPreset?.isTemporary
     );
     navigate('/table');
-  };
+  }, [players, startingChips, buyInRubles, selectedPresetId, newVenueName, selectedVenue, venues, createGame, navigate]);
 
   return (
     <div className="page">
-      <h1 className="page-title">🎲 Новая игра</h1>
+      <HeaderBack title="Новая игра" />
 
-      {/* Промпт: есть ближайшая запланированная */}
-      {showNearbyPrompt && nearbyGame && (
-        <div className="card" style={{ background: 'rgba(255, 200, 50, 0.08)', borderColor: 'rgba(255, 200, 50, 0.2)', borderStyle: 'solid', borderWidth: 1 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <span style={{ fontWeight: 600, fontSize: 14 }}>📅 Запланированная игра</span>
-            <button style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 18 }} onClick={() => setShowNearbyPrompt(false)}>×</button>
-          </div>
-          <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12 }}>
-            Найдена запись: <b>{nearbyGame.venue}</b> с игроками
-          </p>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn btn-primary btn-small" style={{ flex: 1, fontSize: 13, padding: '10px 12px' }} onClick={useNearbyData}>
-              ✅ Заполнить автоматически
-            </button>
-            <button className="btn btn-secondary btn-small" style={{ flex: 1, fontSize: 13, padding: '10px 12px' }} onClick={async () => {
-              if (nearbyGame) await deleteScheduledGame(nearbyGame.id);
-              setShowNearbyPrompt(false);
-            }}>
-              Пропустить
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Игроки */}
-      <div className="card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <h3>Игроки</h3>
-          <span style={{ fontSize: 13, color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.1)', padding: '2px 10px', borderRadius: 12 }}>
-            {players.length}
-          </span>
-        </div>
-        <div className="add-player-form">
-          <input
-            className="input"
-            type="text"
-            placeholder="Имя игрока"
-            value={newPlayerName}
-            onChange={e => setNewPlayerName(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && addPlayer()}
-          />
-          <button className="btn btn-primary btn-small" onClick={addPlayer} style={{ minWidth: 36 }}>
-            +
-          </button>
-          {lastGamePlayers.length > 0 && (
+      {/* Выбор пресета (выпадающий список + кнопка Настроить) */}
+      <div className={`card card-preset-selector ${highlightCard === 'preset' ? 'card-highlight' : ''}`}>
+        <div className="preset-selector-row">
+          <label className="preset-selector-label">Пресет</label>
+          <div className="preset-dropdown">
             <button
-              className="btn btn-secondary btn-small"
-              onClick={addLastPlayers}
-              title="Добавить игроков из последней игры"
-              style={{ fontSize: 18, minWidth: 36 }}
+              className="preset-dropdown-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowPresetDropdown(!showPresetDropdown);
+              }}
             >
-              ↻
+              {selectedPresetId
+                ? presets.find(p => p.id === selectedPresetId)?.name || '—'
+                : 'Выбрать'
+              }
+              <span className={`preset-dropdown-arrow ${showPresetDropdown ? 'open' : ''}`}>▾</span>
             </button>
-          )}
-        </div>
-        {players.length > 0 && (
-          <div style={{ marginTop: 8, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            {players.map((name, i) => (
-              <div key={i} className="player-row" style={{ margin: 0, padding: '10px 12px' }}>
-                <span className="player-name" style={{ fontSize: 14 }}>{name}</span>
-                <button
-                  className="btn btn-danger btn-icon btn-small"
-                  style={{ width: 28, height: 28, fontSize: 14 }}
-                  onClick={() => removePlayer(i)}
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-        {players.length === 0 && (
-          <p style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: 14, marginTop: 8 }}>
-            Добавьте хотя бы одного игрока
-          </p>
-        )}
-      </div>
-
-      {/* Настройки: место, очки, бай-ин */}
-      <div className="card">
-        <h3 style={{ marginBottom: 16 }}>⚙️ Настройки</h3>
-
-        {/* Место */}
-        <div style={{ marginBottom: 16 }}>
-          <label className="form-label">📍 Место</label>
-          {venues.length > 0 && !showVenueInput ? (
-            <div>
-              <div className="preset-selector" style={{ marginBottom: 8 }}>
-                {venues.map(v => (
+            {showPresetDropdown && (
+              <div className="preset-dropdown-menu" onClick={(e) => e.stopPropagation()}>
+                {presets.map(preset => (
                   <div
-                    key={v}
-                    className={`preset-chip ${selectedVenue === v ? 'active' : ''}`}
-                    onClick={() => { setSelectedVenue(v); setNewVenueName(''); }}
-                    style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', fontSize: 13 }}
+                    key={preset.id}
+                    className={`preset-dropdown-item ${selectedPresetId === preset.id ? 'active' : ''}`}
+                    onClick={() => {
+                      setSelectedPresetId(preset.id);
+                      setShowPresetDropdown(false);
+                    }}
                   >
-                    {v}
-                    <span
-                      style={{ marginLeft: 2, opacity: 0.5, cursor: 'pointer' }}
-                      onClick={e => {
-                        e.stopPropagation();
-                        deleteVenue(v);
-                        setVenues(prev => prev.filter(x => x !== v));
-                        if (selectedVenue === v) setSelectedVenue('');
-                      }}
-                    >×</span>
+                    {preset.name}
                   </div>
                 ))}
               </div>
-              <button
-                className="btn btn-secondary btn-small"
-                onClick={() => setShowVenueInput(true)}
-                style={{ fontSize: 12, padding: '6px 12px' }}
-              >
-                + Новое
-              </button>
-            </div>
-          ) : (
-            <div>
-              <input
-                className="input"
-                type="text"
-                placeholder="Название места"
-                value={newVenueName}
-                onChange={e => setNewVenueName(e.target.value)}
-                style={{ fontSize: 14, padding: '10px 14px' }}
-              />
-              {venues.length > 0 && (
-                <button
-                  className="btn btn-secondary btn-small"
-                  style={{ marginTop: 8, fontSize: 12, padding: '6px 12px' }}
-                  onClick={() => { setShowVenueInput(false); setNewVenueName(''); }}
-                >
-                  ← Выбрать
-                </button>
-              )}
-            </div>
-          )}
+            )}
+          </div>
+          <button
+            className="btn btn-link btn-small"
+            onClick={() => navigate('/presets', { state: { fromCreate: true } })}
+          >
+            Настроить
+          </button>
+        </div>
+      </div>
+
+      {/* Игроки с умным поиском */}
+      <div className={`card ${highlightCard === 'players' ? 'card-highlight' : ''}`}>
+        <div className="card-header-centered">
+          <h3>Игроки</h3>
+          <span className="badge">{players.length}/10</span>
         </div>
 
-        {/* Очки и бай-ин в строку */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-          <div style={{ flex: 1 }}>
-            <label className="form-label">Стартовые очки</label>
+        <PlayerAutocomplete
+          players={players}
+          onAddPlayer={addPlayer}
+          onRemovePlayer={removePlayer}
+        />
+
+        {players.length < 2 && (
+          <p className="empty-text mt-8">Добавьте минимум 2 игроков</p>
+        )}
+
+        {/* Запланированная игра */}
+        {showNearbyPrompt && nearbyGame && (
+          <div className="nearby-game-prompt">
+            <div className="nearby-game-info">
+              <span className="nearby-game-venue">📍 {nearbyGame.venue}</span>
+              <span className="nearby-game-players">
+                {nearbyGame.players.map((name, i) => (
+                  <span key={i} className={verifiedNames.has(name) ? 'verified-player' : ''}>
+                    {name}{i < nearbyGame.players.length - 1 ? ', ' : ''}
+                  </span>
+                ))}
+              </span>
+            </div>
+            <div className="nearby-game-actions">
+              <button className="btn btn-primary btn-small" onClick={useNearbyData}>Играть</button>
+              <button className="btn btn-danger btn-small" onClick={skipAndDelete}>Удалить</button>
+              <button className="btn btn-secondary btn-small btn-nearby-hide" onClick={dismissPrompt}>Скрыть</button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Настройки */}
+      <div className="card">
+        <h3 className="card-title-center">Настройки</h3>
+
+        <VenueSection
+          venues={venues}
+          selectedVenue={selectedVenue}
+          setSelectedVenue={setSelectedVenue}
+          newVenueName={newVenueName}
+          setNewVenueName={setNewVenueName}
+          showVenueInput={showVenueInput}
+          setShowVenueInput={setShowVenueInput}
+          setVenues={setVenues}
+        />
+
+        <div className="settings-row">
+          <div className="settings-field">
+            <label className="form-label">Очки (pts)</label>
             <input
-              className="input"
+              className="input input-center input-bold"
               type="number"
               value={startingChips}
               onChange={e => setStartingChips(e.target.value)}
               placeholder="500"
-              style={{ fontSize: 18, fontWeight: 700, textAlign: 'center', padding: '12px 8px' }}
             />
           </div>
-          <div style={{ flex: 1 }}>
+          <div className="settings-field">
             <label className="form-label">Buy-in (₽)</label>
             <input
-              className="input"
+              className="input input-center input-bold"
               type="number"
               value={buyInRubles}
               onChange={e => setBuyInRubles(e.target.value)}
               placeholder="250"
-              style={{ fontSize: 18, fontWeight: 700, textAlign: 'center', padding: '12px 8px' }}
             />
           </div>
           {chipPrice && (
-            <div style={{ flex: 1 }}>
+            <div className="settings-field">
               <label className="form-label">Цена 1 очка</label>
               <input
-                className="input"
+                className="input input-center input-bold chip-price-input"
                 type="text"
                 readOnly
                 value={`${chipPrice} ₽`}
-                style={{
-                  fontSize: 18,
-                  fontWeight: 700,
-                  textAlign: 'center',
-                  padding: '12px 8px',
-                  color: 'var(--accent-gold)',
-                  background: 'rgba(245, 200, 66, 0.08)',
-                  borderColor: 'rgba(245, 200, 66, 0.3)',
-                  cursor: 'default',
-                }}
               />
             </div>
           )}
         </div>
       </div>
 
-      {/* Пресет фишек */}
-      {presets.length > 0 ? (
-        <div className="card">
-          <h3 style={{ marginBottom: 12 }}>🪙 Пресет фишек</h3>
-          <div className="preset-selector">
-            {presets.map(preset => (
-              <div
-                key={preset.id}
-                className={`preset-chip ${selectedPresetId === preset.id ? 'active' : ''}`}
-                onClick={() => setSelectedPresetId(preset.id)}
-                style={{ padding: '8px 12px', fontSize: 13 }}
-              >
-                {preset.name}
-              </div>
-            ))}
-          </div>
+      {/* Кнопки действий (фиксированные) */}
+      <div className="fixed-actions">
+        <button
+          className={`btn ${selectedPresetId && players.length >= 2 && startingChips && buyInRubles ? 'btn-success' : 'btn-primary'}`}
+          onClick={() => {
+            if (!selectedPresetId) {
+              triggerHighlight('preset');
+            } else if (players.length < 2) {
+              triggerHighlight('players');
+            } else {
+              handleCreate();
+            }
+          }}
+        >
+          {!selectedPresetId
+            ? 'Выберите пресет'
+            : players.length < 2
+              ? 'Минимум 2 игрока'
+              : !startingChips || !buyInRubles
+                ? 'Заполните все поля'
+                : 'Продолжить'
+          }
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Вспомогательный компонент для локаций (без изменений)
+function VenueSection({ venues, selectedVenue, setSelectedVenue, newVenueName, setNewVenueName, showVenueInput, setShowVenueInput, setVenues }: {
+  venues: string[];
+  selectedVenue: string;
+  setSelectedVenue: (v: string) => void;
+  newVenueName: string;
+  setNewVenueName: (v: string) => void;
+  showVenueInput: boolean;
+  setShowVenueInput: (v: boolean) => void;
+  setVenues: React.Dispatch<React.SetStateAction<string[]>>;
+}) {
+  const showInput = venues.length === 0 || showVenueInput;
+
+  if (!showInput) {
+    return (
+      <div className="form-group">
+        <label className="form-label form-label-center">Локация</label>
+        <div className="preset-selector mb-8">
+          {venues.map(v => (
+            <div
+              key={v}
+              className={`preset-chip ${selectedVenue === v ? 'active' : ''}`}
+              onClick={() => { setSelectedVenue(v); setNewVenueName(''); }}
+            >
+              {v}
+              <span
+                className="preset-delete-x"
+                onClick={async e => {
+                  e.stopPropagation();
+                  await deleteVenue(v);
+                  setVenues(prev => prev.filter(x => x !== v));
+                  if (selectedVenue === v) setSelectedVenue('');
+                }}
+              >×</span>
+            </div>
+          ))}
         </div>
-      ) : (
-        <div className="card" style={{ textAlign: 'center' }}>
-          <p style={{ color: 'var(--text-secondary)', fontSize: 14, marginBottom: 12 }}>
-            Нет сохранённых пресетов
-          </p>
-          <button
-            className="btn btn-secondary btn-small"
-            onClick={() => navigate('/chips')}
-          >
-            🎯 Создать пресет
-          </button>
-        </div>
+        <button className="btn btn-secondary btn-small btn-center" onClick={() => setShowVenueInput(true)}>
+          + Новое
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="form-group">
+      <label className="form-label form-label-center">Локация</label>
+      <input
+        className="input"
+        type="text"
+        placeholder="Где играем?"
+        value={newVenueName}
+        onChange={e => setNewVenueName(e.target.value)}
+      />
+      {venues.length > 0 && (
+        <button
+          className="btn btn-secondary btn-small mt-8 btn-center"
+          onClick={() => { setShowVenueInput(false); setNewVenueName(''); }}
+        >
+          ← Выбрать
+        </button>
       )}
-
-      <div className="spacer" />
-
-      <button
-        className="btn btn-primary mt-16"
-        onClick={handleCreate}
-        disabled={players.length === 0 || !startingChips || !buyInRubles || !selectedPresetId}
-        style={{
-          opacity: players.length === 0 || !selectedPresetId ? 0.5 : 1,
-          display: selectedPresetId ? undefined : 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: 4,
-        }}
-      >
-        {selectedPresetId ? (
-          'Продолжить'
-        ) : (
-          <>
-            <span>Продолжить</span>
-            <span style={{ fontSize: 11, opacity: 0.7, fontWeight: 400, textTransform: 'none' }}>
-              Выберите пресет фишек
-            </span>
-          </>
-        )}
-      </button>
-      <button
-        className="btn btn-secondary mt-16"
-        onClick={() => navigate('/')}
-      >
-        На главную
-      </button>
     </div>
   );
 }

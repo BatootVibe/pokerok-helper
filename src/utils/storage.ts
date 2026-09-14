@@ -1,49 +1,107 @@
 import { ChipPreset, CompletedGame, ScheduledGame } from '../types';
-import { apiGetGames, apiSaveGame, apiClearAllGames, apiGetPresets, apiSavePreset, apiDeletePreset, apiDeleteGame, apiGetScheduled, apiSaveScheduled, apiDeleteScheduled } from './api';
+import { loadLocalProfile, saveLocalProfile } from './localProfile';
+import { getOffline } from '../offline/store';
+import { apiGetGames, apiSaveGame, apiClearAllGames, apiGetPresets, apiSavePreset, apiDeletePreset, apiDeleteGame, apiGetScheduled, apiSaveScheduled, apiDeleteScheduled, apiHealthCheck, apiGet, apiPost, apiPut, apiRequest, apiGetVenues, apiSaveVenue, apiDeleteVenue, apiAdminStats, apiAdminClearAllGames, apiAdminResetAll, apiAdminDeleteGame, apiAdminDeleteUser, apiAdminDeletePreset, apiAdminDeleteVenue, apiAdminDeleteScheduled, apiAdminRenameUser, apiAdminExportData, apiAdminImportData } from './api';
+import {
+  LOCAL_HISTORY_KEY,
+  LOCAL_PRESETS_KEY,
+  LOCAL_VENUES_KEY,
+  LOCAL_SCHEDULED_KEY,
+  LOCAL_USER_PROFILE_KEY,
+  NEARBY_GAME_MARGIN,
+  API_AUTO_RESET_INTERVAL,
+  GAMES_KEY,
+  CURRENT_GAME_ID_KEY,
+} from './constants';
 
-const LOCAL_HISTORY_KEY = 'poker_game_history';
-const LOCAL_PRESETS_KEY = 'poker_chip_presets';
-const LOCAL_VENUES_KEY = 'poker_venues';
-const LOCAL_SCHEDULED_KEY = 'poker_scheduled_games';
-
+/**
+ * Флаг доступности API. Автоматически сбрасывается через API_AUTO_RESET_INTERVAL,
+ * чтобы периодически проверять восстановление соединения.
+ */
 let apiAvailable = true;
+let apiLastFailTime = 0;
 
-async function withFallback<T>(apiCall: () => Promise<T>, localStorageKey: string | null, localDefault: T): Promise<T> {
+function resetApiAvailability() {
+  apiAvailable = true;
+}
+
+/** Периодический сброс флага — вызывается при каждой попытке API */
+function checkAutoReset() {
+  if (!apiAvailable && Date.now() - apiLastFailTime > API_AUTO_RESET_INTERVAL) {
+    resetApiAvailability();
+  }
+}
+
+async function withFallback<T>(
+  apiCall: () => Promise<T>,
+  localStorageKey: string | null,
+  localDefault: T,
+): Promise<T> {
+  checkAutoReset();
+
   if (!apiAvailable) {
     if (localStorageKey) {
-      const data = localStorage.getItem(localStorageKey);
-      return data ? JSON.parse(data) : localDefault;
+      try {
+        const data = localStorage.getItem(localStorageKey);
+        return data ? JSON.parse(data) : localDefault;
+      } catch {
+        return localDefault;
+      }
     }
     return localDefault;
   }
+
   try {
     const result = await apiCall();
     return result;
   } catch {
     apiAvailable = false;
+    apiLastFailTime = Date.now();
     if (localStorageKey) {
-      const data = localStorage.getItem(localStorageKey);
-      return data ? JSON.parse(data) : localDefault;
+      try {
+        const data = localStorage.getItem(localStorageKey);
+        return data ? JSON.parse(data) : localDefault;
+      } catch {
+        return localDefault;
+      }
     }
     return localDefault;
   }
 }
 
+// === Game History ===
+
 export async function loadGameHistory(): Promise<CompletedGame[]> {
-  return withFallback(
+  const history = await withFallback(
     () => apiGetGames(),
     LOCAL_HISTORY_KEY,
-    []
+    [],
   );
+  return [...(history || [])].sort((a, b) => {
+    const ta = new Date(a.date || '').getTime() || 0;
+    const tb = new Date(b.date || '').getTime() || 0;
+    return tb - ta;
+  });
 }
 
 export async function addCompletedGame(game: CompletedGame): Promise<void> {
   try {
     await apiSaveGame(game);
+    // Обновляем кэш только после успешного сохранения в API
+    let history: CompletedGame[] = [];
+    try {
+      history = JSON.parse(localStorage.getItem(LOCAL_HISTORY_KEY) || '[]');
+    } catch {
+      // corrupted data, start fresh
+    }
+    history.unshift(game);
+    localStorage.setItem(LOCAL_HISTORY_KEY, JSON.stringify(history));
   } catch {
     apiAvailable = false;
-    const history = JSON.parse(localStorage.getItem(LOCAL_HISTORY_KEY) || '[]');
-    history.unshift(game);
+    apiLastFailTime = Date.now();
+    let history: CompletedGame[] = [];
+    try { history = JSON.parse(localStorage.getItem(LOCAL_HISTORY_KEY) || '[]'); } catch {}
+    history = [game, ...history.filter(g => g.id !== game.id)];
     localStorage.setItem(LOCAL_HISTORY_KEY, JSON.stringify(history));
   }
 }
@@ -51,81 +109,101 @@ export async function addCompletedGame(game: CompletedGame): Promise<void> {
 export async function deleteCompletedGame(id: string): Promise<void> {
   try {
     await apiDeleteGame(id);
+    // Обновляем кэш после успешного удаления
+    let history: CompletedGame[] = [];
+    try {
+      history = JSON.parse(localStorage.getItem(LOCAL_HISTORY_KEY) || '[]');
+    } catch {
+      // corrupted
+    }
+    const updated = history.filter((g: CompletedGame) => g.id !== id);
+    localStorage.setItem(LOCAL_HISTORY_KEY, JSON.stringify(updated));
   } catch {
     apiAvailable = false;
+    apiLastFailTime = Date.now();
+    const history: CompletedGame[] = JSON.parse(localStorage.getItem(LOCAL_HISTORY_KEY) || '[]');
+    localStorage.setItem(LOCAL_HISTORY_KEY, JSON.stringify(history.filter(g => g.id !== id)));
   }
 }
 
 export async function clearGameHistory(): Promise<void> {
   try {
     await apiClearAllGames();
+    localStorage.removeItem(LOCAL_HISTORY_KEY);
   } catch {
     apiAvailable = false;
+    apiLastFailTime = Date.now();
     localStorage.removeItem(LOCAL_HISTORY_KEY);
   }
+  // Сбрасываем кэш последней игры
+  window.lastGamePlayers = undefined;
 }
+
+// === Presets ===
 
 export async function loadPresets(): Promise<ChipPreset[]> {
   return withFallback(
     () => apiGetPresets(),
     LOCAL_PRESETS_KEY,
-    []
+    [],
   );
 }
 
 export async function savePresets(presets: ChipPreset[]): Promise<void> {
-  // Сохраняем каждый пресет отдельно
-  for (const preset of presets) {
-    try {
-      await apiSavePreset(preset);
-    } catch {
-      apiAvailable = false;
-    }
-  }
+  try { for (const preset of presets) await apiSavePreset(preset); }
+  catch { apiAvailable = false; apiLastFailTime = Date.now(); }
+  // Сохраняем в кэш только после успешного сохранения всех пресетов в API
   localStorage.setItem(LOCAL_PRESETS_KEY, JSON.stringify(presets));
 }
 
 export async function deletePreset(id: string): Promise<void> {
-  try {
-    await apiDeletePreset(id);
-  } catch {
-    apiAvailable = false;
-  }
-  // Обновляем localStorage в любом случае
+  try { await apiDeletePreset(id); } catch { apiAvailable = false; apiLastFailTime = Date.now(); }
+  // Обновляем кэш после успешного удаления
   const presets = JSON.parse(localStorage.getItem(LOCAL_PRESETS_KEY) || '[]');
   const updated = presets.filter((p: ChipPreset) => p.id !== id);
   localStorage.setItem(LOCAL_PRESETS_KEY, JSON.stringify(updated));
 }
 
-export function generateId(): string {
-  return Date.now().toString(36) + Math.random().toString(36).substring(2, 9);
+// === Venues ===
+
+export async function loadVenues(): Promise<string[]> {
+  return withFallback(
+    () => apiGetVenues(),
+    LOCAL_VENUES_KEY,
+    [],
+  );
 }
 
-// Места проведения (пока только localStorage)
-export function loadVenues(): string[] {
-  const data = localStorage.getItem(LOCAL_VENUES_KEY);
-  return data ? JSON.parse(data) : [];
-}
-
-export function saveVenue(name: string): void {
-  const venues = loadVenues();
+export async function saveVenue(name: string): Promise<void> {
+  try { await apiSaveVenue(name); } catch { apiAvailable = false; apiLastFailTime = Date.now(); }
+  // Обновляем кэш после успешного сохранения
+  const venues = await loadVenues();
   if (!venues.includes(name)) {
     venues.unshift(name);
     localStorage.setItem(LOCAL_VENUES_KEY, JSON.stringify(venues));
   }
 }
 
-export function deleteVenue(name: string): void {
-  const venues = loadVenues().filter(v => v !== name);
-  localStorage.setItem(LOCAL_VENUES_KEY, JSON.stringify(venues));
+export async function deleteVenue(name: string): Promise<void> {
+  try { await apiDeleteVenue(name); } catch { apiAvailable = false; apiLastFailTime = Date.now(); }
+  // Обновляем кэш после успешного удаления
+  const venues = await loadVenues();
+  const updated = venues.filter(v => v !== name);
+  localStorage.setItem(LOCAL_VENUES_KEY, JSON.stringify(updated));
 }
 
-// Запланированные игры
+// === Scheduled Games ===
+
 export async function loadScheduledGames(): Promise<ScheduledGame[]> {
   return withFallback(
     () => apiGetScheduled(),
     LOCAL_SCHEDULED_KEY,
-    []
+    [],
+  ).then(games =>
+    (games || []).filter(g =>
+      g && typeof g.id === 'string' && typeof g.venue === 'string' &&
+      typeof g.scheduledAt === 'string' && Array.isArray(g.players)
+    )
   );
 }
 
@@ -134,10 +212,22 @@ export async function saveScheduledGame(game: ScheduledGame): Promise<void> {
     await apiSaveScheduled(game);
   } catch {
     apiAvailable = false;
-    const games = await loadScheduledGames();
-    games.unshift(game);
-    localStorage.setItem(LOCAL_SCHEDULED_KEY, JSON.stringify(games));
+    apiLastFailTime = Date.now();
   }
+  // Обновляем кэш только после успешного сохранения в API
+  let games: ScheduledGame[] = [];
+  try {
+    games = JSON.parse(localStorage.getItem(LOCAL_SCHEDULED_KEY) || '[]');
+  } catch {
+    // corrupted
+  }
+  const existingIdx = games.findIndex((g: ScheduledGame) => g.id === game.id);
+  if (existingIdx >= 0) {
+    games[existingIdx] = game;
+  } else {
+    games.unshift(game);
+  }
+  localStorage.setItem(LOCAL_SCHEDULED_KEY, JSON.stringify(games));
 }
 
 export async function deleteScheduledGame(id: string): Promise<void> {
@@ -145,23 +235,224 @@ export async function deleteScheduledGame(id: string): Promise<void> {
     await apiDeleteScheduled(id);
   } catch {
     apiAvailable = false;
+    apiLastFailTime = Date.now();
   }
-  const games = await loadScheduledGames();
-  const filtered = games.filter(g => g.id !== id);
+  // Обновляем кэш напрямую, без запроса к API
+  let games: ScheduledGame[] = [];
+  try {
+    games = JSON.parse(localStorage.getItem(LOCAL_SCHEDULED_KEY) || '[]');
+  } catch {
+    // corrupted
+  }
+  const filtered = games.filter((g: ScheduledGame) => g.id !== id);
   localStorage.setItem(LOCAL_SCHEDULED_KEY, JSON.stringify(filtered));
 }
 
-// Проверка — есть ли запланированная игра рядом по времени (±30 мин)
+// === Nearby scheduled game ===
+
 export async function findNearbyScheduledGame(): Promise<ScheduledGame | null> {
   const games = await loadScheduledGames();
-  const now = new Date();
-  const margin = 30 * 60 * 1000; // 30 минут в мс
+  const now = Date.now();
 
   for (const game of games) {
-    const scheduled = new Date(game.scheduledAt).getTime();
-    if (Math.abs(now.getTime() - scheduled) <= margin) {
+    const scheduled = game.scheduledAtTs || new Date(game.scheduledAt).getTime();
+    if (Math.abs(now - scheduled) <= NEARBY_GAME_MARGIN) {
       return game;
     }
   }
   return null;
+}
+
+// === User Profile & Players ===
+
+/** Получает профиль текущего пользователя (только имя). */
+export async function getUserProfile(): Promise<{ name: string; isAdmin?: boolean } | null> {
+  if (!window.Telegram?.WebApp?.initData) return loadLocalProfile();
+  try {
+    const data = await apiGet<{ name: string } | null>('/api/users/me');
+    if (data && data.name) {
+      localStorage.setItem(LOCAL_USER_PROFILE_KEY + 'current', JSON.stringify(data));
+      return data;
+    }
+  } catch {
+    try {
+      const cached = localStorage.getItem(LOCAL_USER_PROFILE_KEY + 'current');
+      if (cached) return JSON.parse(cached);
+    } catch { /* ignore */ }
+  }
+  return loadLocalProfile();
+}
+
+/** Привязка: сервер сам определяет пользователя из подписи. */
+export async function saveUserProfile(profile: { name: string }): Promise<{ success: boolean; error?: string }> {
+  if (!window.Telegram?.WebApp?.initData) {
+    try {
+      saveLocalProfile({ ...loadLocalProfile(), ...profile });
+      return { success: true };
+    } catch (error) { return { success: false, error: String(error) }; }
+  }
+  try {
+    await apiPost('/api/users', profile);
+  } catch (e: unknown) {
+    const apiErr = e as { status?: number; body?: { error?: string } };
+    if (apiErr.status === 409 && apiErr.body?.error) {
+      return { success: false, error: apiErr.body.error };
+    }
+    return { success: false, error: 'Ошибка при привязке. Попробуйте ещё раз.' };
+  }
+  localStorage.setItem(LOCAL_USER_PROFILE_KEY + 'current', JSON.stringify(profile));
+  return { success: true };
+}
+
+/** Удаление профиля. */
+export async function deleteUserProfile(): Promise<void> {
+  try {
+    await apiRequest('/api/users', { method: 'DELETE' });
+  } catch {
+    apiAvailable = false;
+    apiLastFailTime = Date.now();
+    throw new Error('Не удалось отвязать аккаунт на сервере');
+  }
+  localStorage.removeItem(LOCAL_USER_PROFILE_KEY + 'current');
+}
+
+/** Обновление имени. */
+export async function updateUserProfile(profile: { name: string }): Promise<{ success: boolean; error?: string }> {
+  if (!window.Telegram?.WebApp?.initData) {
+    try {
+      saveLocalProfile({ ...loadLocalProfile(), ...profile });
+      return { success: true };
+    } catch (error) { return { success: false, error: String(error) }; }
+  }
+  try {
+    await apiPut('/api/users', profile);
+    localStorage.setItem(LOCAL_USER_PROFILE_KEY + 'current', JSON.stringify(profile));
+    return { success: true };
+  } catch (e: unknown) {
+    const apiErr = e as { status?: number; body?: { error?: string } };
+    if (apiErr.status === 409 && apiErr.body?.error) {
+      return { success: false, error: apiErr.body.error };
+    }
+    return { success: false, error: 'Ошибка при сохранении. Попробуйте ещё раз.' };
+  }
+}
+
+/** Собирает профили из localStorage (fallback для офлайн-режима). */
+function _getLocalProfiles(): { name: string; userId: number }[] {
+  const profiles: { name: string; userId: number }[] = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && key.startsWith(LOCAL_USER_PROFILE_KEY)) {
+      try {
+        const profile = JSON.parse(localStorage.getItem(key) || '');
+        if (profile && profile.name && profile.userId) {
+          profiles.push(profile);
+        }
+      } catch { /* ignore */ }
+    }
+  }
+  return profiles;
+}
+
+/**
+ * Получает список всех привязанных игроков (id + name).
+ * API: из БД. Fallback: из localStorage.
+ */
+export async function getAllPlayers(): Promise<{ name: string; id: number; localId?: string; gamesCount?: number }[]> {
+  const local = _getLocalProfiles();
+  const offline=Object.values(getOffline().players).map(p=>({name:p.name,id:p.userId||0,localId:p.id}));
+  try {
+    const apiPlayers = await apiGet<{ name: string; id: number; gamesCount?: number }[]>('/api/players');
+    const apiIds = new Set(apiPlayers.map(p => p.id));
+    const extra = local.filter(p => !apiIds.has(p.userId));
+    return [...offline, ...apiPlayers.filter(p=>!offline.some(o=>o.id===p.id)), ...extra.map(p => ({ name: p.name, id: p.userId }))];
+  } catch {
+    return [...offline,...local.map(p => ({ name: p.name, id: p.userId }))];
+  }
+}
+
+// === API availability status ===
+
+export function isApiAvailable(): boolean {
+  return apiAvailable;
+}
+
+/** Принудительная проверка API (health check) */
+export async function checkApiHealth(): Promise<boolean> {
+  try {
+    await apiHealthCheck();
+    apiAvailable = true;
+    return true;
+  } catch {
+    apiAvailable = false;
+    apiLastFailTime = Date.now();
+    return false;
+  }
+}
+
+// === Admin functions (no localStorage fallback) ===
+
+export async function adminGetStats() {
+  return apiAdminStats();
+}
+
+export async function adminClearAllGames() {
+  await apiAdminClearAllGames();
+  localStorage.removeItem(LOCAL_HISTORY_KEY);
+}
+
+export async function adminResetAll() {
+  await apiAdminResetAll();
+  localStorage.removeItem(LOCAL_HISTORY_KEY);
+  localStorage.removeItem(LOCAL_PRESETS_KEY);
+  localStorage.removeItem(LOCAL_VENUES_KEY);
+  localStorage.removeItem(LOCAL_SCHEDULED_KEY);
+  localStorage.removeItem(LOCAL_USER_PROFILE_KEY + 'current');
+  localStorage.removeItem('poker_guest_mode');
+  localStorage.removeItem(GAMES_KEY);
+  localStorage.removeItem(CURRENT_GAME_ID_KEY);
+}
+
+export async function adminDeleteGame(id: string) {
+  await apiAdminDeleteGame(id);
+  let history: CompletedGame[] = [];
+  try { history = JSON.parse(localStorage.getItem(LOCAL_HISTORY_KEY) || '[]'); } catch {}
+  localStorage.setItem(LOCAL_HISTORY_KEY, JSON.stringify(history.filter(g => g.id !== id)));
+}
+
+export async function adminDeleteUser(id: number) {
+  await apiAdminDeleteUser(id);
+}
+
+export async function adminDeletePreset(id: string) {
+  await apiAdminDeletePreset(id);
+  let presets: ChipPreset[] = [];
+  try { presets = JSON.parse(localStorage.getItem(LOCAL_PRESETS_KEY) || '[]'); } catch {}
+  localStorage.setItem(LOCAL_PRESETS_KEY, JSON.stringify(presets.filter(p => p.id !== id)));
+}
+
+export async function adminDeleteVenue(name: string) {
+  await apiAdminDeleteVenue(name);
+  let venues: string[] = [];
+  try { venues = JSON.parse(localStorage.getItem(LOCAL_VENUES_KEY) || '[]'); } catch {}
+  localStorage.setItem(LOCAL_VENUES_KEY, JSON.stringify(venues.filter(v => v !== name)));
+}
+
+export async function adminDeleteScheduled(id: string) {
+  await apiAdminDeleteScheduled(id);
+  let games: ScheduledGame[] = [];
+  try { games = JSON.parse(localStorage.getItem(LOCAL_SCHEDULED_KEY) || '[]'); } catch {}
+  localStorage.setItem(LOCAL_SCHEDULED_KEY, JSON.stringify(games.filter(g => g.id !== id)));
+}
+
+export async function adminRenameUser(id: number, name: string) {
+  await apiAdminRenameUser(id, name);
+}
+
+export async function adminExportData() {
+  return apiAdminExportData();
+}
+
+export async function adminImportData(data: any) {
+  return apiAdminImportData(data);
 }

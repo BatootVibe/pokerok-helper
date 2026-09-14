@@ -12,3 +12,29 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+// Telegram WebApp
+interface TelegramUser {
+  id: number | string;
+  first_name?: string;
+  last_name?: string;
+  username?: string;
+  language_code?: string;
+  is_premium?: boolean;
+}
+
+interface TelegramWebApp {
+  WebApp: {
+    initData: string;
+    initDataUnsafe: {
+      user?: TelegramUser;
+    };
+  };
+}
+
+// Global window extensions
+interface Window {
+  Telegram?: TelegramWebApp;
+  lastGamePlayers?: Array<{ name: string; userId?: number }>;
+}
+

@@ -1,0 +1,6 @@
+{
+  "appId": "com.batootvibe.pokerok",
+  "appName": "PokerOK Helper",
+  "webDir": "dist",
+  "server": { "androidScheme": "https" }
+}

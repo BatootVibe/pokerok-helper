@@ -1,218 +1,440 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { ScheduledGame } from '../types';
-import { loadScheduledGames, saveScheduledGame, deleteScheduledGame, generateId, loadVenues } from '../utils/storage';
+import { loadScheduledGames, saveScheduledGame, deleteScheduledGame, loadVenues, getAllPlayers } from '../utils/storage';
+import { generateId } from '../utils/id';
+import { HeaderBack } from '../components/HeaderBack';
+import { showToast } from '../components/Toast';
+import { formatDate, formatTime, isPast } from '../utils/date';
+import { NEARBY_GAME_MARGIN, HOLD_DURATION_SCHEDULED } from '../utils/constants';
+import { PlayerAutocomplete, Player } from '../components/PlayerAutocomplete';
+import { useVerifiedPlayers, useBoundStatus } from '../utils/hooks';
 
-export function ScheduledGamesPage() {
-  const navigate = useNavigate();
+// === Main Page ===
+
+export default function ScheduledGamesPage() {
   const [scheduled, setScheduled] = useState<ScheduledGame[]>([]);
   const [venues, setVenues] = useState<string[]>([]);
   const [showForm, setShowForm] = useState(false);
+  const [editingGame, setEditingGame] = useState<ScheduledGame | null>(null);
+  const [formKey, setFormKey] = useState(0);
 
-  // Форма
+  // Form state
   const [venue, setVenue] = useState('');
   const [newVenue, setNewVenue] = useState('');
+  const [showVenueInput, setShowVenueInput] = useState(false);
   const [dateTime, setDateTime] = useState('');
-  const [playerInput, setPlayerInput] = useState('');
-  const [players, setPlayers] = useState<string[]>([]);
+  const [players, setPlayers] = useState<Player[]>([]);
 
-  useEffect(() => {
-    loadScheduledGames().then(setScheduled);
-    setVenues(loadVenues());
+  // Loading state
+  const [loading, setLoading] = useState(true);
+
+  const { isBound } = useBoundStatus();
+
+  const { verifiedNames } = useVerifiedPlayers();
+
+  // ---- Data loading ----
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [games, v] = await Promise.all([loadScheduledGames().catch(() => []), loadVenues().catch(() => [])]);
+      setScheduled(games);
+      setVenues(v);
+    } catch (err) {
+      console.error('Failed to load scheduled games:', err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const addPlayer = () => {
-    const name = playerInput.trim();
-    if (name && !players.includes(name)) {
-      setPlayers([...players, name]);
-      setPlayerInput('');
-    }
-  };
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
-  const removePlayer = (idx: number) => {
-    setPlayers(players.filter((_, i) => i !== idx));
-  };
+  // ---- Form handlers ----
 
-  const handleSave = async () => {
-    const finalVenue = newVenue.trim() || venue;
-    if (!finalVenue || !dateTime || players.length === 0) return;
-
-    const game: ScheduledGame = {
-      id: generateId(),
-      venue: finalVenue,
-      scheduledAt: new Date(dateTime).toISOString(),
-      players,
-      createdAt: new Date().toISOString(),
-    };
-
-    await saveScheduledGame(game);
-    setScheduled(await loadScheduledGames());
-    setShowForm(false);
+  const openNewGameForm = () => {
+    setEditingGame(null);
     setVenue('');
     setNewVenue('');
+    setShowVenueInput(false);
     setDateTime('');
     setPlayers([]);
+    setFormKey(k => k + 1);
+    setShowForm(true);
   };
 
-  const handleDelete = async (id: string) => {
-    await deleteScheduledGame(id);
-    setScheduled(await loadScheduledGames());
+  const closeForm = () => {
+    setEditingGame(null);
+    setVenue('');
+    setNewVenue('');
+    setShowVenueInput(false);
+    setDateTime('');
+    setPlayers([]);
+    setShowForm(false);
   };
 
-  const formatDate = (iso: string) => {
-    const d = new Date(iso);
-    return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
-  };
+  const openEditForm = useCallback(async (game: ScheduledGame) => {
+    setEditingGame(game);
+    setVenue(game.venue || '');
+    setNewVenue('');
+    setDateTime(game.scheduledAt || '');
+    // Подставляем userId для привязанных игроков
+    const allPlayers = await getAllPlayers();
+    const playerMap = new Map(allPlayers.map(p => [p.name.toLowerCase(), { name: p.name, userId: p.id }]));
+    setPlayers((game.players || []).map(name => {
+      const linked = playerMap.get(name.toLowerCase());
+      return linked || { name };
+    }));
+    setFormKey(k => k + 1);
+    setShowForm(true);
+  }, []);
 
-  const formatTime = (iso: string) => {
-    const d = new Date(iso);
-    return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-  };
+  const handleSave = useCallback(async () => {
+    const finalVenue = newVenue.trim() || venue;
+    if (!finalVenue || !dateTime || players.length < 2) return;
 
-  const isPast = (iso: string) => {
-    return new Date(iso).getTime() < Date.now() - 30 * 60 * 1000;
-  };
+    const scheduledAtTs = new Date(dateTime).getTime();
+    const scheduledAtDisplay = `${formatDate(dateTime)} в ${formatTime(dateTime)}`;
+
+    const game: ScheduledGame = {
+      id: editingGame?.id || generateId(),
+      venue: finalVenue,
+      scheduledAt: dateTime,
+      scheduledAtTs,
+      scheduledAtDisplay,
+      players: players.map(p => p.name),
+      createdAt: editingGame?.createdAt || new Date().toISOString(),
+    };
+
+    try {
+      await saveScheduledGame(game);
+      // Обновляем стейт напрямую
+      await loadData();
+      // Сбрасываем форму после успешного сохранения
+      setEditingGame(null);
+      setVenue('');
+      setNewVenue('');
+      setDateTime('');
+      setPlayers([]);
+      setShowForm(false);
+    } catch (err) {
+      console.error('Failed to save scheduled game:', err);
+      showToast('Не удалось сохранить игру на сервер. Попробуйте ещё раз.');
+    }
+  }, [newVenue, venue, dateTime, players, editingGame, loadData]);
+
+  const handleDelete = useCallback(async (id: string) => {
+    try {
+      await deleteScheduledGame(id);
+      // Обновляем стейт напрямую, без перезагрузки из API/localStorage
+      setScheduled(prev => prev.filter(g => g.id !== id));
+      // Сбрасываем форму
+      setEditingGame(null);
+      setVenue('');
+      setNewVenue('');
+      setDateTime('');
+      setPlayers([]);
+      setFormKey(k => k + 1);
+      setShowForm(false);
+    } catch (err) {
+      console.error('Failed to delete scheduled game:', err);
+      showToast('Не удалось удалить игру с сервера.');
+    }
+  }, []);
+
+  const handleAddPlayer = useCallback((player: Player) => {
+    if (!player || !player.name) return;
+    setPlayers(prev => {
+      if (prev.length >= 10) return prev;
+      if (prev.some(p => p.name.toLowerCase() === player.name.toLowerCase())) return prev;
+      return [...prev, player];
+    });
+  }, []);
+
+  const handleRemovePlayer = useCallback((index: number) => {
+    setPlayers(prev => prev.filter((_, i) => i !== index));
+  }, []);
+
+  // ---- Render ----
+
+  const sorted = [...scheduled].sort((a, b) => {
+    const ta = a.scheduledAtTs || (a.scheduledAt ? new Date(a.scheduledAt).getTime() : Infinity);
+    const tb = b.scheduledAtTs || (b.scheduledAt ? new Date(b.scheduledAt).getTime() : Infinity);
+    return ta - tb;
+  });
 
   return (
     <div className="page">
-      <h1 className="page-title">📅 Запланированные</h1>
+      <HeaderBack title="Расписание" />
 
-      {showForm ? (
-        <div className="card">
-          <h3 style={{ marginBottom: 16 }}>Новая запись</h3>
-
-          {/* Место */}
-          <div style={{ marginBottom: 16 }}>
-            <label className="form-label">📍 Место</label>
-            {venues.length > 0 && !newVenue ? (
-              <div>
-                <div className="preset-selector" style={{ marginBottom: 8 }}>
-                  {venues.map(v => (
-                    <div
-                      key={v}
-                      className={`preset-chip ${venue === v ? 'active' : ''}`}
-                      onClick={() => setVenue(v)}
-                      style={{ padding: '6px 12px', fontSize: 13 }}
-                    >
-                      {v}
-                    </div>
-                  ))}
-                </div>
-                <button className="btn btn-secondary btn-small" onClick={() => setNewVenue(' ')} style={{ fontSize: 12, padding: '6px 12px' }}>
-                  + Новое
-                </button>
-              </div>
-            ) : (
-              <input
-                className="input"
-                type="text"
-                placeholder="Название места"
-                value={newVenue}
-                onChange={e => setNewVenue(e.target.value)}
-                style={{ fontSize: 14, padding: '10px 14px' }}
-              />
-            )}
-          </div>
-
-          {/* Дата и время */}
-          <div style={{ marginBottom: 16 }}>
-            <label className="form-label">🕐 Дата и время</label>
-            <input
-              className="input"
-              type="datetime-local"
-              value={dateTime}
-              onChange={e => setDateTime(e.target.value)}
-              style={{ fontSize: 14, padding: '10px 14px' }}
-            />
-          </div>
-
-          {/* Игроки */}
-          <div style={{ marginBottom: 16 }}>
-            <label className="form-label">👥 Игроки</label>
-            <div className="add-player-form" style={{ marginBottom: 8 }}>
-              <input
-                className="input"
-                type="text"
-                placeholder="Имя игрока"
-                value={playerInput}
-                onChange={e => setPlayerInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && addPlayer()}
-              />
-              <button className="btn btn-primary btn-small" onClick={addPlayer}>+</button>
-            </div>
-            {players.length > 0 && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {players.map((name, i) => (
-                  <span key={i} style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 4,
-                    padding: '4px 10px', background: 'rgba(255,255,255,0.06)',
-                    borderRadius: 12, fontSize: 13,
-                  }}>
-                    {name}
-                    <span style={{ cursor: 'pointer', opacity: 0.5 }} onClick={() => removePlayer(i)}>×</span>
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn btn-primary btn-small" style={{ flex: 1 }} onClick={handleSave}>
-              💾 Сохранить
-            </button>
-            <button className="btn btn-secondary btn-small" style={{ flex: 1 }} onClick={() => setShowForm(false)}>
-              Отмена
-            </button>
-          </div>
+      {loading ? (
+        <div className="empty-state">Загрузка...</div>
+      ) : showForm ? (
+        <ScheduleForm
+          key={formKey}
+          venues={venues}
+          venue={venue}
+          setVenue={setVenue}
+          newVenue={newVenue}
+          setNewVenue={setNewVenue}
+          showVenueInput={showVenueInput}
+          setShowVenueInput={setShowVenueInput}
+          dateTime={dateTime}
+          setDateTime={setDateTime}
+          players={players}
+          onAddPlayer={handleAddPlayer}
+          onRemovePlayer={handleRemovePlayer}
+          editingGame={editingGame}
+          onSave={handleSave}
+          onDelete={editingGame && isBound ? () => handleDelete(editingGame.id) : undefined}
+          onCancel={closeForm}
+          isBound={isBound}
+        />
+      ) : sorted.length > 0 ? (
+        <div className="mt-16">
+          {sorted.map(game => (
+            <ScheduledEntry key={game.id} game={game} onEdit={() => isBound && openEditForm(game)} canEdit={isBound} verifiedNames={verifiedNames} />
+          ))}
+          {isBound && (
+            <p className="page-hint text-center">Удерживайте карточку 2 сек для редактирования</p>
+          )}
         </div>
       ) : (
-        <button className="btn btn-secondary" onClick={() => setShowForm(true)}>
-          + Запланировать игру
-        </button>
+        <div className="empty-state">
+          <div className="empty-state-icon">📅</div>
+          Пока нет запланированных игр
+        </div>
       )}
 
-      {/* Список запланированных */}
-      {scheduled.length > 0 && (
-        <div style={{ marginTop: 16 }}>
-          {scheduled.map(game => (
-            <div key={game.id} className="card" style={{
-              opacity: isPast(game.scheduledAt) ? 0.5 : 1,
-              position: 'relative',
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: 15 }}>{game.venue}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
-                    {formatDate(game.scheduledAt)} в {formatTime(game.scheduledAt)}
-                  </div>
-                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4, opacity: 0.7 }}>
-                    👥 {game.players.join(', ')}
-                  </div>
-                </div>
-                <button
-                  className="btn btn-danger btn-icon btn-small"
-                  style={{ width: 28, height: 28, fontSize: 14 }}
-                  onClick={() => handleDelete(game.id)}
-                >
-                  ×
-                </button>
-              </div>
+      <div className="fixed-actions">
+        {!showForm && isBound && (
+          <button className="btn btn-secondary" onClick={openNewGameForm}>
+            + Запланировать игру
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// === Schedule Form ===
+
+function ScheduleForm({
+  venues, venue, setVenue, newVenue, setNewVenue,
+  showVenueInput, setShowVenueInput,
+  dateTime, setDateTime,
+  players, onAddPlayer, onRemovePlayer, editingGame,
+  onSave, onDelete, onCancel, isBound,
+}: {
+  venues: string[];
+  venue: string; setVenue: (v: string) => void;
+  newVenue: string; setNewVenue: (v: string) => void;
+  showVenueInput: boolean; setShowVenueInput: (v: boolean) => void;
+  dateTime: string; setDateTime: (v: string) => void;
+  players: Player[];
+  onAddPlayer: (player: Player) => void;
+  onRemovePlayer: (idx: number) => void;
+  editingGame: ScheduledGame | null;
+  onSave: () => void;
+  onDelete?: () => void;
+  onCancel: () => void;
+  isBound: boolean;
+}) {
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await onSave();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="card">
+      <h3 className="mb-16">{editingGame ? 'Редактировать' : 'Новая запись'}</h3>
+
+      <VenueSelector
+        venues={venues}
+        venue={venue}
+        setVenue={setVenue}
+        newVenue={newVenue}
+        setNewVenue={setNewVenue}
+        showVenueInput={showVenueInput}
+        setShowVenueInput={setShowVenueInput}
+      />
+
+      <div className="form-group">
+        <label className="form-label">Дата и время</label>
+        <input
+          className="input"
+          type="datetime-local"
+          value={dateTime}
+          onChange={e => setDateTime(e.target.value)}
+        />
+      </div>
+
+      <div className="form-group">
+        <label className="form-label">
+          Игроки <span className="badge">{players.length}/10</span>
+        </label>
+        <PlayerAutocomplete players={players} onAddPlayer={onAddPlayer} onRemovePlayer={onRemovePlayer} showHistoryBtn={false} />
+        {players.length < 2 && (
+          <p className="empty-text mt-8">Минимум 2 игрока</p>
+        )}
+      </div>
+
+      <div className="form-actions">
+        {isBound && (
+          <button
+            className="btn btn-primary btn-small"
+            style={{ flex: 1 }}
+            onClick={handleSave}
+            disabled={players.length < 2 || saving}
+          >
+            {saving ? '⏳' : '💾'} Сохранить
+          </button>
+        )}
+        <button className="btn btn-secondary btn-small" style={{ flex: 1 }} onClick={onCancel}>
+          Отмена
+        </button>
+        {onDelete && (
+          <button className="btn btn-danger btn-small" onClick={onDelete}>
+            🗑️
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// === Venue Selector ===
+
+function VenueSelector({
+  venues, venue, setVenue, newVenue, setNewVenue, showVenueInput, setShowVenueInput,
+}: {
+  venues: string[];
+  venue: string; setVenue: (v: string) => void;
+  newVenue: string; setNewVenue: (v: string) => void;
+  showVenueInput: boolean;
+  setShowVenueInput: (v: boolean) => void;
+}) {
+  if (!showVenueInput && venues.length > 0) {
+    return (
+      <div className="form-group">
+        <label className="form-label">Локация</label>
+        <div className="preset-selector mb-8">
+          {venues.map(v => (
+            <div
+              key={v}
+              className={`preset-chip ${venue === v ? 'active' : ''}`}
+              onClick={() => setVenue(v)}
+            >
+              {v}
             </div>
           ))}
         </div>
-      )}
+        <button className="btn btn-secondary btn-small" onClick={() => setShowVenueInput(true)}>
+          + Новое
+        </button>
+      </div>
+    );
+  }
 
-      {scheduled.length === 0 && !showForm && (
-        <div className="card" style={{ textAlign: 'center', padding: 40, marginTop: 16 }}>
-          <div style={{ fontSize: 36, marginBottom: 8 }}>📅</div>
-          <p style={{ color: 'var(--text-secondary)' }}>Нет запланированных игр</p>
+  return (
+    <div className="form-group">
+      <label className="form-label">Локация</label>
+      <input
+        className="input"
+        type="text"
+        placeholder="Где играем?"
+        value={newVenue}
+        onChange={e => setNewVenue(e.target.value)}
+      />
+      {venues.length > 0 && (
+        <button
+          className="btn btn-secondary btn-small mt-8"
+          onClick={() => {
+            setNewVenue('');
+            setVenue(venues[0] || '');
+            setShowVenueInput(false);
+          }}
+        >
+          ← Выбрать
+        </button>
+      )}
+    </div>
+  );
+}
+
+// === Scheduled Entry Card ===
+
+function ScheduledEntry({ game, onEdit, canEdit, verifiedNames }: { game: ScheduledGame; onEdit: () => void; canEdit: boolean; verifiedNames: Set<string> }) {
+  const holdTimerRef = useRef<number | null>(null);
+  const [isHolding, setIsHolding] = useState(false);
+
+  const EDIT_HOLD_DURATION = HOLD_DURATION_SCHEDULED;
+
+  const safeVenue = game.venue || 'Без локации';
+  const safePlayers = Array.isArray(game.players) ? game.players : [];
+  const safeScheduledAt = game.scheduledAt || '';
+  const displayTime = game.scheduledAtDisplay || (safeScheduledAt ? `${formatDate(safeScheduledAt)} в ${formatTime(safeScheduledAt)}` : '');
+  const past = game.scheduledAtTs ? game.scheduledAtTs < Date.now() - NEARBY_GAME_MARGIN : (safeScheduledAt ? isPast(safeScheduledAt, NEARBY_GAME_MARGIN) : false);
+
+  const startHold = () => {
+    if (!canEdit) return;
+    setIsHolding(true);
+    holdTimerRef.current = window.setTimeout(() => {
+      holdTimerRef.current = null;
+      setIsHolding(false);
+      onEdit();
+    }, EDIT_HOLD_DURATION);
+  };
+
+  const releaseHold = () => {
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+    setIsHolding(false);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
+    };
+  }, []);
+
+  return (
+    <div
+      className={`card scheduled-entry ${past ? 'past' : ''} ${isHolding ? 'holding' : ''}`}
+      onMouseDown={startHold}
+      onMouseUp={releaseHold}
+      onMouseLeave={releaseHold}
+      onTouchStart={startHold}
+      onTouchEnd={releaseHold}
+      onTouchCancel={releaseHold}
+      onTouchMove={(e) => { e.preventDefault(); releaseHold(); }}
+    >
+      <div className="scheduled-header">
+        <div className="scheduled-info">
+          <div className="scheduled-venue font-bold">{safeVenue}</div>
+          <div className="scheduled-time text-muted">
+            {displayTime || 'Дата не указана'}
+          </div>
+          <div className="scheduled-players text-muted">
+            {safePlayers.length > 0
+              ? safePlayers.map((name, i) => (
+                  <span key={i} className={verifiedNames.has(name) ? 'verified-player' : ''}>
+                    {name}{i < safePlayers.length - 1 ? ', ' : ''}
+                  </span>
+                ))
+              : 'Нет игроков'}
+          </div>
         </div>
-      )}
-
-      <div className="spacer" />
-      <button className="btn btn-secondary mt-16" onClick={() => navigate('/')}>
-        На главную
-      </button>
+      </div>
     </div>
   );
 }

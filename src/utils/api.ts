@@ -1,14 +1,104 @@
-import { CompletedGame, ChipPreset, ScheduledGame } from '../types';
+import { CompletedGame, ChipPreset, ScheduledGame, Game } from '../types';
+import { getOffline, isLocalRoute, localRequest } from '../offline/store';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
+const API_TIMEOUT = 30000; // 30 секунд
+
+/**
+ * Получает initData от Telegram WebApp.
+ * Возвращает строку для отправки в заголовке x-telegram-init-data.
+ */
+function getInitData(): string | undefined {
+  return window.Telegram?.WebApp?.initData || undefined;
+}
+
+interface ApiError extends Error {
+  status?: number;
+  body?: unknown;
+}
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options,
+  // Telegram webapp keeps using the hosted API.  The standalone APK/browser
+  // without Telegram identity uses the local-first offline store.
+  if(isLocalRoute(path) && !getInitData()) return localRequest(path,options);
+  if(!getInitData() && path==='/api/venues') {
+    const venues: string[]=JSON.parse(localStorage.getItem('poker_venues')||'[]');
+    if(options?.method==='POST') {
+      const name=JSON.parse(String(options.body)).name;
+      localStorage.setItem('poker_venues',JSON.stringify([...new Set([...venues,name])]));
+      return {success:true} as T;
+    }
+    return venues as T;
+  }
+  if(!getInitData() && path.startsWith('/api/venues/')&&options?.method==='DELETE') {
+    const name=decodeURIComponent(path.slice('/api/venues/'.length));
+    localStorage.setItem('poker_venues',JSON.stringify(JSON.parse(localStorage.getItem('poker_venues')||'[]').filter((v:string)=>v!==name)));
+    return {success:true} as T;
+  }
+  const config=getOffline();
+  if(!config.url&&!API_BASE&&!getInitData()) throw new Error('Сервер не подключён');
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT);
+
+  const initData = getInitData();
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if(config.token) headers.Authorization='Bearer '+config.token;
+  if (initData) {
+    headers['x-telegram-init-data'] = initData;
+  }
+
+  try {
+    const res = await fetch(`${config.url||API_BASE}${path}`, {
+      ...options,
+      headers,
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    if (!res.ok) {
+      const error = new Error(`API error: ${res.status} ${res.statusText}`) as ApiError;
+      error.status = res.status;
+      try {
+        error.body = await res.json();
+      } catch {
+        // Response body not JSON
+      }
+      throw error;
+    }
+
+    return res.json();
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      const error = new Error('Request timeout') as ApiError;
+      error.status = 504;
+      throw error;
+    }
+    throw err;
+  }
+}
+
+// Generic helpers
+export function apiGet<T>(path: string): Promise<T> {
+  return request<T>(path);
+}
+
+export function apiPost<T>(path: string, body: unknown): Promise<T> {
+  return request<T>(path, {
+    method: 'POST',
+    body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`API error: ${res.status}`);
-  return res.json();
+}
+
+export function apiPut<T>(path: string, body: unknown): Promise<T> {
+  return request<T>(path, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+}
+
+export function apiRequest<T>(path: string, options?: RequestInit): Promise<T> {
+  return request<T>(path, options);
 }
 
 // Games
@@ -61,4 +151,106 @@ export function apiSaveScheduled(game: ScheduledGame): Promise<{ success: boolea
 
 export function apiDeleteScheduled(id: string): Promise<{ success: boolean }> {
   return request(`/api/scheduled/${id}`, { method: 'DELETE' });
+}
+
+// Venues
+export function apiGetVenues(): Promise<string[]> {
+  return request<string[]>('/api/venues');
+}
+
+export function apiSaveVenue(name: string): Promise<{ success: boolean }> {
+  return request('/api/venues', {
+    method: 'POST',
+    body: JSON.stringify({ name }),
+  });
+}
+
+export function apiDeleteVenue(name: string): Promise<{ success: boolean }> {
+  return request(`/api/venues/${encodeURIComponent(name)}`, { method: 'DELETE' });
+}
+
+// Health check
+export function apiHealthCheck(): Promise<{ status: string }> {
+  return request('/api/health');
+}
+
+// Admin
+export function apiAdminStats(): Promise<{ games: number; users: number; presets: number; venues: number; scheduled: number }> {
+  return request('/api/admin/stats');
+}
+
+export function apiAdminClearAllGames(): Promise<{ success: boolean }> {
+  return request('/api/admin/games', { method: 'DELETE' });
+}
+
+export function apiAdminResetAll(): Promise<{ success: boolean }> {
+  return request('/api/admin/reset-all', { method: 'DELETE' });
+}
+
+export function apiAdminDeleteGame(id: string): Promise<{ success: boolean }> {
+  return request(`/api/admin/games/${id}`, { method: 'DELETE' });
+}
+
+export function apiAdminDeleteUser(id: number): Promise<{ success: boolean }> {
+  return request(`/api/admin/users/${id}`, { method: 'DELETE' });
+}
+
+export function apiAdminDeletePreset(id: string): Promise<{ success: boolean }> {
+  return request(`/api/admin/presets/${id}`, { method: 'DELETE' });
+}
+
+export function apiAdminDeleteVenue(name: string): Promise<{ success: boolean }> {
+  return request(`/api/admin/venues/${encodeURIComponent(name)}`, { method: 'DELETE' });
+}
+
+export function apiAdminDeleteScheduled(id: string): Promise<{ success: boolean }> {
+  return request(`/api/admin/scheduled/${id}`, { method: 'DELETE' });
+}
+
+export function apiAdminRenameUser(id: number, name: string): Promise<{ success: boolean }> {
+  return request(`/api/admin/users/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify({ name }),
+  });
+}
+
+export function apiAdminExportData(): Promise<any> {
+  return request('/api/admin/export');
+}
+
+export function apiAdminImportData(data: any): Promise<{ success: boolean }> {
+  return request('/api/admin/import', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+// Active Games
+export function apiSaveActiveGame(game: Game, chipInputs: Record<string, Record<number, number>>): Promise<{ success: boolean }> {
+  return request('/api/active-games', {
+    method: 'POST',
+    body: JSON.stringify({ id: game.id, data: game, chipInputs }),
+  });
+}
+
+export interface ActiveGameResponse {
+  game: Game;
+  chipInputs: Record<string, Record<number, number>>;
+  isOwner: boolean;
+  updatedAt: string;
+}
+
+export function apiGetMyActiveGame(): Promise<ActiveGameResponse | null> {
+  return request<ActiveGameResponse | null>('/api/active-games/mine');
+}
+
+export function apiUpdateActiveGameChips(gameId: string, playerId: string, chips: Record<number, number>): Promise<{ success: boolean }> {
+  return request(`/api/active-games/${gameId}/chips`, {
+    method: 'PATCH',
+    body: JSON.stringify({ playerId, chipInputs: chips }),
+  });
+}
+
+export function apiDeleteActiveGame(gameId: string): Promise<{ success: boolean }> {
+  return request(`/api/active-games/${gameId}`, { method: 'DELETE' });
 }
