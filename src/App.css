@@ -549,6 +549,40 @@ body::before {
   border-radius: 10px;
 }
 
+.chip-stepper {
+  flex: 0 0 calc(50% - 3px);
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) 38px;
+  gap: 4px;
+}
+
+.chip-stepper .chip-row-input-lg {
+  width: 100%;
+  min-width: 0;
+  padding: 6px 3px;
+  flex: none;
+}
+
+.chip-step-btn {
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.chip-step-btn:active {
+  background: rgba(226, 183, 20, 0.22);
+  border-color: var(--accent-gold);
+}
+
 .chip-row-readonly {
   display: flex;
   align-items: center;

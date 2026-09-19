@@ -272,22 +272,81 @@ function ChipRow({ chip, value, onChange }: {
         </span>
       </div>
       {onChange ? (
-        <input
-          type="number"
-          min="0"
-          value={value || ''}
-          onChange={e => onChange(e.target.value)}
-          placeholder="0"
-          className="chip-row-input chip-row-input-lg"
-          onFocus={e => e.target.style.borderColor = 'var(--accent-gold)'}
-          onBlur={e => e.target.style.borderColor = 'var(--border-color)'}
-        />
+        <div className="chip-stepper">
+          <ChipStepButton label="−" delta={-1} value={value} onChange={onChange} />
+          <input
+            type="number"
+            min="0"
+            value={value || ''}
+            onChange={e => onChange(e.target.value)}
+            placeholder="0"
+            className="chip-row-input chip-row-input-lg"
+            onFocus={e => e.target.style.borderColor = 'var(--accent-gold)'}
+            onBlur={e => e.target.style.borderColor = 'var(--border-color)'}
+          />
+          <ChipStepButton label="+" delta={1} value={value} onChange={onChange} />
+        </div>
       ) : (
         <span className="chip-row-input chip-row-input-lg chip-row-readonly">
           {value || '—'}
         </span>
       )}
     </div>
+  );
+}
+
+function ChipStepButton({ label, delta, value, onChange }: {
+  label: string;
+  delta: -1 | 1;
+  value: number;
+  onChange: (value: string) => void;
+}) {
+  const timerRef = useRef<number | null>(null);
+
+  const applyDelta = (amount: number) => {
+    onChange(String(Math.max(0, value + amount)));
+  };
+
+  const startPress = (event: React.PointerEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    timerRef.current = window.setTimeout(() => {
+      applyDelta(delta * 5);
+      timerRef.current = null;
+    }, 500);
+  };
+
+  const finishPress = () => {
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+      applyDelta(delta);
+    }
+  };
+
+  const cancelPress = () => {
+    if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+    timerRef.current = null;
+  };
+
+  return (
+    <button
+      type="button"
+      className="chip-step-btn"
+      aria-label={`${delta > 0 ? 'Добавить' : 'Убрать'} фишку; долгое нажатие — ${Math.abs(delta * 5)}`}
+      onPointerDown={startPress}
+      onPointerUp={finishPress}
+      onPointerCancel={cancelPress}
+      onContextMenu={event => event.preventDefault()}
+      onKeyDown={event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          applyDelta(delta);
+        }
+      }}
+    >
+      {label}
+    </button>
   );
 }
 
